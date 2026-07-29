@@ -1,0 +1,17 @@
+{
+  "name": "athena-sso-demo",
+  "version": "1.0.0",
+  "description": "SAML SSO prototype for Athena-style appointment retrieval",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "cookie-parser": "^1.4.7",
+    "dotenv": "^16.4.2",
+    "express": "^4.21.2",
+    "samlify": "^2.13.1",
+    "selfsigned": "^5.5.0"
+  }
+}

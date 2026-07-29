@@ -1,0 +1,932 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Athena SSO Dashboard</title>
+    <style>
+      * { box-sizing: border-box; }
+      body { font-family: -apple-system, "Segoe UI", Arial, sans-serif; margin: 0; background: #f4f7fb; color: #14213d; }
+      .top-loading-bar { position: fixed; top: 0; left: 0; height: 3px; width: 100%; background: transparent; z-index: 100; overflow: hidden; }
+      .top-loading-bar::after { content: ''; display: block; height: 100%; width: 40%; background: #4f9cf0; transform: translateX(-100%); animation: none; }
+      .top-loading-bar.active::after { animation: loading-sweep 1.1s ease-in-out infinite; }
+      @keyframes loading-sweep { 0% { transform: translateX(-100%); } 50% { transform: translateX(60%); } 100% { transform: translateX(250%); } }
+      .navbar { background: #0f4c81; color: white; padding: 14px 24px; display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; box-shadow: 0 2px 8px rgba(0,0,0,0.12); position: sticky; top: 0; z-index: 40; }
+      .navbar-brand h1 { margin: 0; font-size: 18px; }
+      .navbar-brand p { margin: 2px 0 0; font-size: 12px; color: #cbd8ea; }
+      .navbar-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+      .status-indicator { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 999px; font-size: 12px; font-weight: 600; background: rgba(255,255,255,0.12); color: white; }
+      .status-dot { width: 8px; height: 8px; border-radius: 50%; background: #94a3b8; flex-shrink: 0; }
+      .status-indicator.connected .status-dot { background: #4ade80; box-shadow: 0 0 0 3px rgba(74, 222, 128, 0.25); }
+      .status-indicator.error .status-dot { background: #f87171; }
+      .navbar button.primary, .navbar a.primary { background: white; color: #0f4c81; border: none; font-weight: 600; padding: 10px 12px; border-radius: 8px; }
+      .navbar button.primary:hover, .navbar a.primary:hover { background: #e6eef7; }
+      .navbar button.ghost { background: transparent; color: white; border: 1px solid rgba(255,255,255,0.4); }
+      .navbar button.ghost:hover { background: rgba(255,255,255,0.1); }
+      .info-bar { max-width: 1100px; margin: 0 auto; padding: 10px 24px 0; font-size: 12px; color: #64748b; }
+      .info-bar a { color: #0f4c81; }
+      .container { max-width: 1100px; margin: 0 auto; padding: 24px; }
+      .card { background: white; border-radius: 12px; padding: 18px; box-shadow: 0 8px 24px rgba(0,0,0,0.06); margin-bottom: 18px; }
+      .actions { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+      .form-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-top: 10px; }
+      button, input, select { padding: 10px 12px; border-radius: 8px; border: 1px solid #cbd5e1; font: inherit; }
+      button { background: #0f4c81; color: white; cursor: pointer; transition: background 0.15s ease, opacity 0.15s ease; }
+      button:hover { background: #123f6b; }
+      button:disabled { opacity: 0.55; cursor: not-allowed; }
+      button.secondary { background: #e2e8f0; color: #14213d; }
+      button.secondary:hover { background: #d5dce6; }
+      button.small { padding: 6px 10px; font-size: 12px; }
+      button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid #4f9cf0; outline-offset: 1px; }
+      .pill { display: inline-block; padding: 6px 10px; border-radius: 999px; font-size: 12px; font-weight: bold; background: #e2e8f0; }
+      table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+      th, td { padding: 10px; border-bottom: 1px solid #e2e8f0; text-align: left; }
+      .table-scroll { max-height: 420px; overflow-y: auto; border: 1px solid #e2e8f0; border-radius: 8px; margin-top: 10px; }
+      .table-scroll table { margin-top: 0; }
+      .table-scroll thead th { position: sticky; top: 0; background: #f8fafc; z-index: 1; box-shadow: 0 1px 0 #e2e8f0; }
+      .table-scroll td { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 220px; }
+      .summary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+      .summary .box { background: #f8fafc; padding: 14px; border-radius: 8px; }
+      .modal-overlay { position: fixed; inset: 0; background: rgba(15, 23, 42, 0.5); display: flex; align-items: center; justify-content: center; z-index: 50; padding: 16px; }
+      .modal { background: white; border-radius: 12px; padding: 20px; max-width: 560px; width: 100%; max-height: 85vh; overflow-y: auto; }
+      .modal-row { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid #f1f5f9; }
+      .modal-row span:first-child { color: #64748b; }
+      .history-item { font-size: 12px; color: #475569; padding: 2px 0; }
+      .tabs { display: flex; gap: 4px; border-bottom: 1px solid #e2e8f0; margin-bottom: 18px; }
+      .tab-button { background: none; color: #64748b; border: none; border-radius: 6px 6px 0 0; padding: 11px 18px; font-weight: 600; font-size: 14px; border-bottom: 2px solid transparent; margin-bottom: -1px; transition: color 0.15s ease, background 0.15s ease, border-color 0.15s ease; }
+      .tab-button:hover { background: #eef3fa; color: #0f4c81; }
+      .tab-button.active { color: #0f4c81; border-bottom: 2px solid #0f4c81; background: #eef3fa; }
+      .week-nav { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+      .week-nav-left { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+      .week-nav-controls { display: inline-flex; border: 1px solid #cbd5e1; border-radius: 8px; overflow: hidden; }
+      .week-nav-controls button { border: none; border-radius: 0; padding: 8px 12px; background: white; color: #14213d; }
+      .week-nav-controls button:hover { background: #eef3fa; }
+      .week-nav-controls button:not(:last-child) { border-right: 1px solid #e2e8f0; }
+      .week-nav-today { border: 1px solid #cbd5e1; background: white; color: #14213d; border-radius: 8px; font-weight: 600; padding: 8px 14px; }
+      .week-nav-today:hover { background: #eef3fa; }
+      .week-nav-title { font-size: 17px; font-weight: 700; margin: 0; }
+      .week-nav-right { display: flex; align-items: center; gap: 8px; }
+      .week-nav-right label { font-size: 12px; color: #64748b; font-weight: 600; }
+      .calendar-week-grid { display: grid; grid-template-columns: 70px repeat(7, minmax(120px, 1fr)); }
+      .cw-header { position: sticky; top: 0; background: white; z-index: 2; font-weight: bold; text-align: center; padding: 8px 4px; border-bottom: 2px solid #e2e8f0; border-left: 1px solid #e2e8f0; font-size: 13px; }
+      .cw-header.today { color: #0f4c81; }
+      .cw-hour-label { padding: 4px 8px; font-size: 11px; color: #64748b; text-align: right; border-top: 1px solid #f1f5f9; border-left: 1px solid #f1f5f9; background: #fafbfc; }
+      .cw-cell { border-top: 1px solid #f1f5f9; border-left: 1px solid #f1f5f9; min-height: 44px; padding: 2px; display: flex; flex-wrap: wrap; align-items: flex-start; gap: 2px; }
+      .cw-chip { background: #0f4c81; color: white; border-radius: 4px; padding: 3px 5px; font-size: 11px; cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; transition: filter 0.1s ease, transform 0.1s ease; flex: 1 1 0; min-width: 46px; border-left: 3px solid rgba(255,255,255,0.5); }
+      .cw-chip:hover { filter: brightness(1.15); transform: translateY(-1px); }
+      .cw-chip.has-case { background: #16a34a; }
+      .cw-more-chip { flex: 0 0 100%; background: #eef3fa; color: #0f4c81; border-radius: 4px; padding: 3px 6px; font-size: 10px; font-weight: 700; cursor: pointer; text-align: center; }
+      .cw-more-chip:hover { background: #dde8f7; }
+      .week-nav-toggle { display: inline-flex; border: 1px solid #cbd5e1; border-radius: 8px; overflow: hidden; }
+      .week-nav-toggle button { border: none; border-radius: 0; padding: 8px 14px; background: white; color: #64748b; font-weight: 600; font-size: 13px; }
+      .week-nav-toggle button:not(:last-child) { border-right: 1px solid #e2e8f0; }
+      .week-nav-toggle button.active { background: #0f4c81; color: white; }
+      .week-nav-toggle button:hover:not(.active) { background: #eef3fa; }
+      .detail-row { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid #f1f5f9; gap: 12px; }
+      .detail-row span:first-child { color: #64748b; flex-shrink: 0; }
+      .slot-list-item { display: flex; justify-content: space-between; align-items: center; padding: 8px; border: 1px solid #e2e8f0; border-radius: 8px; margin-bottom: 6px; cursor: pointer; }
+      .slot-list-item:hover { background: #eef3fa; }
+      .hidden { display: none !important; }
+    </style>
+  </head>
+  <body>
+    <div id="topLoadingBar" class="top-loading-bar"></div>
+    <div class="navbar">
+      <div class="navbar-brand">
+        <h1>Athena SSO &amp; Appointment Dashboard</h1>
+        <p>Live Athena appointments and patient case creation</p>
+      </div>
+      <div class="navbar-actions">
+        <span id="authStatus" class="status-indicator"><span class="status-dot"></span><span id="authStatusText">Not signed in</span></span>
+        <button id="signInBtn" class="primary" type="button" onclick="App.startSsoLogin()">Sign in with SSO</button>
+        <button class="ghost" onclick="App.logout()">Sign out</button>
+      </div>
+    </div>
+    <div class="info-bar">
+      <span id="authMessage"></span>
+      <span id="metadataLink">SP metadata: <a href="/auth/saml/metadata">/auth/saml/metadata</a> · IdP metadata: <a href="/idp/metadata">/idp/metadata</a></span>
+      &nbsp;·&nbsp;<span id="integrationMode">Integration mode: fallback sample appointments until ATHENA_BASE_URL is configured.</span>
+    </div>
+    <div class="container">
+      <div id="dashboard" class="hidden">
+        <div class="tabs">
+          <button id="tabBtnList" class="tab-button active" onclick="App.showTab('list')">List view</button>
+          <button id="tabBtnCalendar" class="tab-button" onclick="App.showTab('calendar')">Calendar view</button>
+          <button id="tabBtnCases" class="tab-button" onclick="App.showTab('cases')">Cases</button>
+        </div>
+
+        <div id="tab-list">
+          <div class="card">
+            <h3>Appointment Summary</h3>
+            <div class="summary" id="summary"></div>
+          </div>
+
+          <div class="card">
+            <h3>Filters</h3>
+            <div class="actions">
+              <input id="dateFilter" type="date" placeholder="Date" />
+              <input id="providerFilter" type="text" placeholder="Provider" />
+              <input id="patientFilter" type="text" placeholder="Patient" />
+              <select id="statusFilter">
+                <option value="">All statuses</option>
+                <option value="scheduled">Scheduled</option>
+                <option value="checked-in">Checked-in</option>
+                <option value="completed">Completed</option>
+              </select>
+              <button onclick="App.loadAppointments()">Apply</button>
+            </div>
+          </div>
+
+          <div id="appointmentsSection" class="card">
+            <div class="actions" style="justify-content: space-between;">
+              <h3 style="margin: 0;">Appointments</h3>
+              <button class="secondary small" onclick="App.scrollToCases()">Jump to Cases ↓</button>
+            </div>
+            <div class="table-scroll">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Patient</th>
+                    <th>Patient ID</th>
+                    <th>Provider</th>
+                    <th>Date</th>
+                    <th>Status</th>
+                    <th>Reason</th>
+                    <th>Case</th>
+                  </tr>
+                </thead>
+                <tbody id="appointmentsBody"></tbody>
+              </table>
+            </div>
+          </div>
+
+        </div>
+
+        <div id="tab-cases" class="hidden">
+          <div id="casesSection" class="card">
+            <div class="actions" style="justify-content: space-between;">
+              <h3 style="margin: 0;">Cases</h3>
+              <button class="secondary small" onclick="App.scrollToAppointments()">↑ Back to Appointments</button>
+            </div>
+            <div class="actions">
+              <select id="caseStatusFilter" onchange="App.loadCases()">
+                <option value="">All statuses</option>
+              </select>
+              <button class="secondary" onclick="App.loadCases()">Refresh cases</button>
+            </div>
+            <table>
+              <thead>
+                <tr>
+                  <th>Patient</th>
+                  <th>Patient ID</th>
+                  <th>Provider</th>
+                  <th>Appointment Date</th>
+                  <th>Status</th>
+                  <th>Created</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="casesBody"></tbody>
+            </table>
+          </div>
+        </div>
+        </div>
+
+        <div id="tab-calendar" class="hidden">
+          <div class="card">
+            <div class="week-nav">
+              <div class="week-nav-left">
+                <div class="week-nav-controls">
+                  <button id="calendarPrevBtn" onclick="App.calendarNavigate(-1)" aria-label="Previous" title="Previous">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+                  </button>
+                  <button id="calendarNextBtn" onclick="App.calendarNavigate(1)" aria-label="Next" title="Next">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                  </button>
+                </div>
+                <button id="calendarTodayBtn" class="week-nav-today" onclick="App.calendarToday()">Today</button>
+                <div class="week-nav-toggle">
+                  <button id="calendarModeWeekBtn" class="active" onclick="App.setCalendarViewMode('week')">Week</button>
+                  <button id="calendarModeDayBtn" onclick="App.setCalendarViewMode('day')">Day</button>
+                </div>
+                <h4 id="calendarWeekTitle" class="week-nav-title">Loading…</h4>
+              </div>
+              <div class="week-nav-right">
+                <label for="calendarDepartmentFilter">Department</label>
+                <select id="calendarDepartmentFilter" onchange="App.onCalendarDepartmentChange()">
+                  <option value="">All departments</option>
+                </select>
+                <label for="calendarJumpDate">Jump to</label>
+                <input id="calendarJumpDate" type="date" onchange="App.calendarJumpToDate()" />
+              </div>
+            </div>
+            <p id="calendarWeekLabel" style="color: #64748b; margin-top: 4px;"></p>
+            <div id="calendarUnscheduled"></div>
+            <div id="calendarGridWrapper" style="overflow-y: auto; max-height: 600px; border: 1px solid #e2e8f0; border-radius: 8px; margin-top: 10px;">
+              <div id="calendarGrid" class="calendar-week-grid"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="caseModalOverlay" class="modal-overlay hidden" onclick="App.closeCaseModalIfBackdrop(event)">
+      <div class="modal" onclick="event.stopPropagation()">
+        <div class="actions" style="justify-content: space-between; margin-bottom: 8px;">
+          <h3 style="margin: 0;">Case Detail</h3>
+          <button class="secondary small" onclick="App.closeCaseModal()">Close</button>
+        </div>
+        <div id="caseModalBody"></div>
+      </div>
+    </div>
+
+    <div id="appointmentDetailOverlay" class="modal-overlay hidden" onclick="App.closeAppointmentDetailIfBackdrop(event)">
+      <div class="modal" onclick="event.stopPropagation()">
+        <div class="actions" style="justify-content: space-between; margin-bottom: 8px;">
+          <h3 id="appointmentDetailTitle" style="margin: 0;">Appointment</h3>
+          <button class="secondary small" onclick="App.closeAppointmentDetail()">Close</button>
+        </div>
+        <div id="appointmentDetailBody"></div>
+      </div>
+    </div>
+
+    <script>
+    (function () {
+      'use strict';
+      const CASE_STATUS_COLORS = {
+        'New': '#e2e8f0',
+        'Voice Pending': '#fef3c7',
+        'Voice Captured': '#dbeafe',
+        'Transcript Cleaning': '#ede9fe',
+        'Prompt Processing': '#ede9fe',
+        'Review Required': '#fee2e2',
+        'Ready for Athena': '#dcfce7',
+        'Sent to Athena': '#bbf7d0',
+        'Failed': '#fecaca',
+      };
+
+      const APPOINTMENT_STATUS_COLORS = {
+        scheduled: '#dbeafe',
+        'checked-in': '#fef3c7',
+        completed: '#dcfce7',
+        cancelled: '#fecaca',
+      };
+
+      let lastAppointments = [];
+      let lastCases = [];
+      let caseStatuses = [];
+      let openCaseId = null;
+      let calendarAppointments = [];
+      let calendarLoaded = false;
+      let calendarAnchorDate = null;
+      let calendarDays = [];
+      let calendarViewMode = 'week';
+      let calendarDepartmentId = '';
+      let departmentOptions = [];
+      let calendarDebounceTimer = null;
+      const CALENDAR_MAX_VISIBLE_PER_SLOT = 2;
+
+      function statusPill(status, colorMap) {
+        const background = (colorMap && colorMap[status]) || '#e2e8f0';
+        return `<span class="pill" style="background:${background}">${status}</span>`;
+      }
+
+      function setAuthStatus(text, state) {
+        document.getElementById('authStatusText').textContent = text;
+        document.getElementById('authStatus').className = `status-indicator ${state || ''}`.trim();
+      }
+
+      function setSignInEnabled(enabled) {
+        const signInButton = document.getElementById('signInBtn');
+        signInButton.disabled = !enabled;
+        signInButton.textContent = enabled ? 'Sign in with SSO' : 'Signed in';
+      }
+
+      let pendingRequests = 0;
+      function beginLoading() {
+        pendingRequests += 1;
+        document.getElementById('topLoadingBar').classList.add('active');
+      }
+      function endLoading() {
+        pendingRequests = Math.max(0, pendingRequests - 1);
+        if (pendingRequests === 0) {
+          document.getElementById('topLoadingBar').classList.remove('active');
+        }
+      }
+
+      async function checkAuth() {
+        try {
+          const res = await fetch('/api/me');
+          if (!res.ok) {
+            setAuthStatus('Not signed in', '');
+            setSignInEnabled(true);
+            document.getElementById('dashboard').classList.add('hidden');
+            document.getElementById('appointmentsBody').innerHTML = '<tr><td colspan="7">Sign in to view appointments.</td></tr>';
+            return;
+          }
+          const payload = await res.json();
+          setAuthStatus(`${payload.user.name} · ${payload.user.role}`, 'connected');
+          setSignInEnabled(false);
+          document.getElementById('dashboard').classList.remove('hidden');
+          await loadAppointments();
+        } catch (error) {
+          setAuthStatus('Auth check failed', 'error');
+          setSignInEnabled(true);
+          document.getElementById('appointmentsBody').innerHTML = '<tr><td colspan="7">Unable to reach the auth endpoint.</td></tr>';
+        }
+      }
+
+      async function loadAppointments() {
+        const params = new URLSearchParams();
+        const date = document.getElementById('dateFilter').value;
+        const provider = document.getElementById('providerFilter').value;
+        const patient = document.getElementById('patientFilter').value;
+        const status = document.getElementById('statusFilter').value;
+        if (date) params.set('date', date);
+        if (provider) params.set('provider', provider);
+        if (patient) params.set('patient', patient);
+        if (status) params.set('status', status);
+
+        beginLoading();
+        let res;
+        try {
+          res = await fetch(`/api/dashboard?${params.toString()}`);
+        } finally {
+          endLoading();
+        }
+        if (!res.ok) {
+          const payload = await res.json().catch(() => ({ message: 'Unable to load appointments.' }));
+          document.getElementById('appointmentsBody').innerHTML = `<tr><td colspan="7">${payload.message}</td></tr>`;
+          return;
+        }
+        const payload = await res.json();
+        if (!payload.ok) {
+          document.getElementById('appointmentsBody').innerHTML = `<tr><td colspan="7">${payload.message}</td></tr>`;
+          return;
+        }
+        const mode = payload.dashboard && payload.dashboard.source ? payload.dashboard.source : 'sample';
+        const message = payload.dashboard && payload.dashboard.message ? payload.dashboard.message : 'No additional status available.';
+        document.getElementById('integrationMode').textContent = `Integration mode: ${mode === 'athena' ? 'Athena sandbox endpoint' : 'fallback sample appointments'}`;
+        document.getElementById('authMessage').textContent = message;
+
+        const summary = document.getElementById('summary');
+        summary.innerHTML = `
+          <div class="box"><strong>${payload.dashboard.summary.scheduled}</strong><br/>Scheduled</div>
+          <div class="box"><strong>${payload.dashboard.summary.checkedIn}</strong><br/>Checked-in</div>
+          <div class="box"><strong>${payload.dashboard.summary.completed}</strong><br/>Completed</div>`;
+
+        lastAppointments = payload.dashboard.appointments;
+        await loadCases();
+      }
+
+      function renderAppointments() {
+        const casedAppointmentIds = new Map(lastCases.map((item) => [item.appointmentId, item]));
+
+        const rows = lastAppointments.map((appointment) => {
+          const existingCase = casedAppointmentIds.get(appointment.id);
+          const caseCell = existingCase
+            ? `<button class="secondary small" onclick="App.viewCase('${existingCase.id}')">View case (${existingCase.status})</button>`
+            : `<button class="small" onclick="App.createCaseFromAppointment('${appointment.id}')">Create case</button>`;
+
+          return `
+            <tr>
+              <td>${appointment.patient}</td>
+              <td>${appointment.patientId ?? '—'}</td>
+              <td>${appointment.provider}</td>
+              <td>${appointment.date}</td>
+              <td>${appointment.status}</td>
+              <td title="${(appointment.reason || '').replace(/"/g, '&quot;')}">${appointment.reason}</td>
+              <td>${caseCell}</td>
+            </tr>
+          `;
+        }).join('');
+
+        document.getElementById('appointmentsBody').innerHTML = rows || '<tr><td colspan="7">No appointments match the current filters.</td></tr>';
+      }
+
+      function renderCaseStatusFilterOptions() {
+        const select = document.getElementById('caseStatusFilter');
+        const current = select.value;
+        select.innerHTML = '<option value="">All statuses</option>' +
+          caseStatuses.map((status) => `<option value="${status}">${status}</option>`).join('');
+        select.value = current;
+      }
+
+      function renderCases() {
+        const rows = lastCases.map((caseItem) => `
+          <tr>
+            <td>${caseItem.patientName}</td>
+            <td>${caseItem.patientId ?? '—'}</td>
+            <td>${caseItem.providerName}</td>
+            <td>${caseItem.appointmentDate}</td>
+            <td>${statusPill(caseItem.status, CASE_STATUS_COLORS)}</td>
+            <td>${new Date(caseItem.createdAt).toLocaleString()}</td>
+            <td><button class="secondary small" onclick="App.viewCase('${caseItem.id}')">View</button></td>
+          </tr>
+        `).join('');
+        document.getElementById('casesBody').innerHTML = rows || '<tr><td colspan="7">No cases created yet.</td></tr>';
+      }
+
+      async function loadCases() {
+        const statusFilter = document.getElementById('caseStatusFilter').value;
+        const params = new URLSearchParams();
+        if (statusFilter) params.set('status', statusFilter);
+
+        const res = await fetch(`/api/cases?${params.toString()}`);
+        if (!res.ok) {
+          document.getElementById('casesBody').innerHTML = '<tr><td colspan="7">Unable to load cases.</td></tr>';
+          return;
+        }
+        const payload = await res.json();
+        lastCases = payload.cases;
+        caseStatuses = payload.statuses;
+        renderCaseStatusFilterOptions();
+        renderCases();
+        renderAppointments();
+        if (calendarLoaded) {
+          renderCalendarWeek();
+        }
+      }
+
+      function showTab(tabName) {
+        document.getElementById('tab-list').classList.toggle('hidden', tabName !== 'list');
+        document.getElementById('tab-calendar').classList.toggle('hidden', tabName !== 'calendar');
+        document.getElementById('tab-cases').classList.toggle('hidden', tabName !== 'cases');
+        document.getElementById('tabBtnList').classList.toggle('active', tabName === 'list');
+        document.getElementById('tabBtnCalendar').classList.toggle('active', tabName === 'calendar');
+        document.getElementById('tabBtnCases').classList.toggle('active', tabName === 'cases');
+
+        if (tabName === 'calendar' && !calendarLoaded) {
+          if (!calendarAnchorDate) {
+            calendarAnchorDate = defaultCalendarAnchorDate();
+          }
+          loadDepartmentOptions();
+          loadCalendarWeek();
+        }
+
+        if (tabName === 'cases') {
+          loadCases();
+        }
+      }
+
+      function startOfWeek(date) {
+        const d = new Date(date);
+        d.setHours(0, 0, 0, 0);
+        d.setDate(d.getDate() - d.getDay());
+        return d;
+      }
+
+      function toIsoDate(d) {
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      }
+
+      function defaultCalendarAnchorDate() {
+        if (lastAppointments.length > 0) {
+          const sorted = [...lastAppointments].sort((a, b) => (a.date < b.date ? 1 : -1));
+          return new Date(`${sorted[0].date}T00:00:00`);
+        }
+        return new Date();
+      }
+
+      function getCalendarDays() {
+        if (calendarViewMode === 'day') {
+          return [new Date(calendarAnchorDate)];
+        }
+        return [...Array(7)].map((_, i) => {
+          const d = new Date(startOfWeek(calendarAnchorDate));
+          d.setDate(d.getDate() + i);
+          return d;
+        });
+      }
+
+      async function loadDepartmentOptions() {
+        const res = await fetch('/api/departments');
+        if (!res.ok) return;
+        const payload = await res.json();
+        if (!payload.ok) return;
+        departmentOptions = payload.departments;
+        const select = document.getElementById('calendarDepartmentFilter');
+        const current = select.value;
+        select.innerHTML = '<option value="">All departments</option>' +
+          departmentOptions.map((dept) => `<option value="${dept.id}">${dept.name}</option>`).join('');
+        select.value = current;
+      }
+
+      function onCalendarDepartmentChange() {
+        calendarDepartmentId = document.getElementById('calendarDepartmentFilter').value;
+        loadCalendarWeek();
+      }
+
+      function setCalendarViewMode(mode) {
+        if (mode === calendarViewMode) return;
+        calendarViewMode = mode;
+        document.getElementById('calendarModeWeekBtn').classList.toggle('active', mode === 'week');
+        document.getElementById('calendarModeDayBtn').classList.toggle('active', mode === 'day');
+        loadCalendarWeek();
+      }
+
+      function calendarNavigate(direction) {
+        const step = calendarViewMode === 'day' ? 1 : 7;
+        calendarAnchorDate.setDate(calendarAnchorDate.getDate() + step * direction);
+        updateCalendarTitleOptimistic();
+        scheduleLoadCalendarWeek();
+      }
+
+      function calendarToday() {
+        calendarAnchorDate = new Date();
+        updateCalendarTitleOptimistic();
+        scheduleLoadCalendarWeek();
+      }
+
+      function calendarJumpToDate() {
+        const value = document.getElementById('calendarJumpDate').value;
+        if (!value) return;
+        calendarAnchorDate = new Date(`${value}T00:00:00`);
+        updateCalendarTitleOptimistic();
+        scheduleLoadCalendarWeek();
+      }
+
+      function scheduleLoadCalendarWeek() {
+        clearTimeout(calendarDebounceTimer);
+        calendarDebounceTimer = setTimeout(loadCalendarWeek, 250);
+      }
+
+      let calendarRequestId = 0;
+
+      function setCalendarNavDisabled(disabled) {
+        document.getElementById('calendarPrevBtn').disabled = disabled;
+        document.getElementById('calendarNextBtn').disabled = disabled;
+        document.getElementById('calendarTodayBtn').disabled = disabled;
+      }
+
+      function formatWeekRangeTitle(days) {
+        const start = days[0];
+        const end = days[days.length - 1];
+        const startMonth = start.toLocaleDateString(undefined, { month: 'short' });
+        const endMonth = end.toLocaleDateString(undefined, { month: 'short' });
+        if (start.getFullYear() !== end.getFullYear()) {
+          return `${startMonth} ${start.getDate()}, ${start.getFullYear()} – ${endMonth} ${end.getDate()}, ${end.getFullYear()}`;
+        }
+        if (startMonth !== endMonth) {
+          return `${startMonth} ${start.getDate()} – ${endMonth} ${end.getDate()}, ${end.getFullYear()}`;
+        }
+        return `${startMonth} ${start.getDate()}–${end.getDate()}, ${end.getFullYear()}`;
+      }
+
+      function formatDayTitle(day) {
+        return day.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+      }
+
+      function formatCalendarTitle(days) {
+        return calendarViewMode === 'day' ? formatDayTitle(days[0]) : formatWeekRangeTitle(days);
+      }
+
+      function updateCalendarTitleOptimistic() {
+        document.getElementById('calendarWeekTitle').textContent = formatCalendarTitle(getCalendarDays());
+      }
+
+      function buildDashboardQuery(days) {
+        const params = new URLSearchParams();
+        params.set('dateFrom', toIsoDate(days[0]));
+        params.set('dateTo', toIsoDate(days[days.length - 1]));
+        if (calendarDepartmentId) {
+          params.set('departmentId', calendarDepartmentId);
+        }
+        return params.toString();
+      }
+
+      // "Auto range sync": once the visible range has loaded, quietly warm the server's
+      // day-cache for the adjacent range so a follow-up Prev/Next click is served instantly.
+      function prefetchAdjacentRanges() {
+        const step = calendarViewMode === 'day' ? 1 : 7;
+        [-1, 1].forEach((direction) => {
+          const adjacentAnchor = new Date(calendarAnchorDate);
+          adjacentAnchor.setDate(adjacentAnchor.getDate() + step * direction);
+          const days = calendarViewMode === 'day'
+            ? [adjacentAnchor]
+            : [...Array(7)].map((_, i) => {
+                const d = new Date(startOfWeek(adjacentAnchor));
+                d.setDate(d.getDate() + i);
+                return d;
+              });
+          fetch(`/api/dashboard?${buildDashboardQuery(days)}`).catch(() => {});
+        });
+      }
+
+      async function loadCalendarWeek() {
+        calendarDays = getCalendarDays();
+
+        const requestId = ++calendarRequestId;
+        document.getElementById('calendarWeekTitle').textContent = formatCalendarTitle(calendarDays);
+        document.getElementById('calendarWeekLabel').textContent = 'Loading appointments…';
+        document.getElementById('calendarGrid').style.gridTemplateColumns = `70px repeat(${calendarDays.length}, minmax(120px, 1fr))`;
+        setCalendarNavDisabled(true);
+        beginLoading();
+
+        try {
+          const res = await fetch(`/api/dashboard?${buildDashboardQuery(calendarDays)}`);
+          if (requestId !== calendarRequestId) return;
+          if (!res.ok) {
+            document.getElementById('calendarWeekLabel').textContent = 'Unable to load this range.';
+            document.getElementById('calendarGrid').innerHTML = '';
+            return;
+          }
+          const payload = await res.json();
+          if (requestId !== calendarRequestId) return;
+          if (!payload.ok) {
+            document.getElementById('calendarWeekLabel').textContent = payload.message;
+            return;
+          }
+
+          calendarAppointments = payload.dashboard.appointments;
+          calendarLoaded = true;
+          const syncNote = payload.dashboard.syncedLive ? 'synced from Athena just now' : 'served from sync cache';
+          document.getElementById('calendarWeekLabel').textContent = `${calendarAppointments.length} appointment(s) — ${syncNote}`;
+          renderCalendarWeek();
+          prefetchAdjacentRanges();
+        } finally {
+          if (requestId === calendarRequestId) {
+            setCalendarNavDisabled(false);
+          }
+          endLoading();
+        }
+      }
+
+      function findCalendarAppointment(appointmentId) {
+        return calendarAppointments.find((a) => a.id === appointmentId) || lastAppointments.find((a) => a.id === appointmentId);
+      }
+
+      function showAppointmentDetail(appointmentId) {
+        const appointment = findCalendarAppointment(appointmentId);
+        if (!appointment) return;
+
+        const casedAppointmentIds = new Map(lastCases.map((item) => [item.appointmentId, item]));
+        const existingCase = casedAppointmentIds.get(appointment.id);
+        const caseAction = existingCase
+          ? `<button onclick="App.closeAppointmentDetail(); App.viewCase('${existingCase.id}')">View case (${existingCase.status})</button>`
+          : `<button onclick="App.closeAppointmentDetail(); App.createCaseFromAppointment('${appointment.id}')">Create case</button>`;
+
+        document.getElementById('appointmentDetailTitle').textContent = appointment.patient;
+        document.getElementById('appointmentDetailBody').innerHTML = `
+          <div class="detail-row"><span>Patient</span><span>${appointment.patient}</span></div>
+          <div class="detail-row"><span>Patient ID</span><span>${appointment.patientId ?? '—'}</span></div>
+          <div class="detail-row"><span>Provider</span><span>${appointment.provider}</span></div>
+          <div class="detail-row"><span>Department</span><span>${appointment.department}</span></div>
+          <div class="detail-row"><span>Date</span><span>${appointment.date} ${appointment.startTime ? appointment.startTime.slice(11, 16) : ''}</span></div>
+          <div class="detail-row"><span>Status</span><span>${statusPill(appointment.status, APPOINTMENT_STATUS_COLORS)}</span></div>
+          <div class="detail-row"><span>Reason</span><span>${appointment.reason || '—'}</span></div>
+          <div class="detail-row"><span>Visit type</span><span>${appointment.visitType || '—'}</span></div>
+          <div class="actions" style="margin-top: 10px;">${caseAction}</div>
+        `;
+        document.getElementById('appointmentDetailOverlay').classList.remove('hidden');
+      }
+
+      function showSlotList(appointmentIds) {
+        const appointments = appointmentIds.map(findCalendarAppointment).filter(Boolean);
+        const casedAppointmentIds = new Map(lastCases.map((item) => [item.appointmentId, item]));
+
+        document.getElementById('appointmentDetailTitle').textContent = `${appointments.length} appointments`;
+        document.getElementById('appointmentDetailBody').innerHTML = appointments.map((appointment) => {
+          const hasCase = casedAppointmentIds.has(appointment.id);
+          const timeLabel = appointment.startTime ? appointment.startTime.slice(11, 16) : '';
+          return `
+            <div class="slot-list-item" onclick="App.showAppointmentDetail('${appointment.id}')">
+              <span><strong>${timeLabel}</strong> ${appointment.patient}</span>
+              ${hasCase ? statusPill('has case', { 'has case': '#dcfce7' }) : statusPill(appointment.status, APPOINTMENT_STATUS_COLORS)}
+            </div>
+          `;
+        }).join('');
+        document.getElementById('appointmentDetailOverlay').classList.remove('hidden');
+      }
+
+      function closeAppointmentDetail() {
+        document.getElementById('appointmentDetailOverlay').classList.add('hidden');
+      }
+
+      function closeAppointmentDetailIfBackdrop(event) {
+        if (event.target.id === 'appointmentDetailOverlay') {
+          closeAppointmentDetail();
+        }
+      }
+
+      function scrollToCases() {
+        document.getElementById('casesSection').scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+
+      function scrollToAppointments() {
+        document.getElementById('appointmentsSection').scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+
+      function renderCalendarWeek() {
+        if (!calendarDays.length) return;
+        const casedAppointmentIds = new Map(lastCases.map((item) => [item.appointmentId, item]));
+        const byDay = new Map(calendarDays.map((d) => [toIsoDate(d), []]));
+        const unscheduled = [];
+
+        calendarAppointments.forEach((appointment) => {
+          if (!appointment.startTime) {
+            unscheduled.push(appointment);
+          } else if (byDay.has(appointment.date)) {
+            byDay.get(appointment.date).push(appointment);
+          }
+        });
+
+        let minHour = 8;
+        let maxHour = 18;
+        const hours = calendarAppointments.filter((a) => a.startTime).map((a) => Number(a.startTime.slice(11, 13)));
+        if (hours.length) {
+          minHour = Math.min(minHour, Math.min(...hours));
+          maxHour = Math.max(maxHour, Math.max(...hours) + 1);
+        }
+        minHour = Math.max(0, minHour - 1);
+        maxHour = Math.min(24, maxHour + 1);
+
+        const todayIso = toIsoDate(new Date());
+
+        let html = '<div class="cw-header"></div>';
+        calendarDays.forEach((d) => {
+          const iso = toIsoDate(d);
+          const label = calendarViewMode === 'day'
+            ? d.toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' })
+            : d.toLocaleDateString(undefined, { weekday: 'short', month: 'numeric', day: 'numeric' });
+          html += `<div class="cw-header ${iso === todayIso ? 'today' : ''}">${label}</div>`;
+        });
+
+        for (let hour = minHour; hour < maxHour; hour += 1) {
+          const hourLabel = hour === 0 ? '12 AM' : hour < 12 ? `${hour} AM` : hour === 12 ? '12 PM' : `${hour - 12} PM`;
+          html += `<div class="cw-hour-label">${hourLabel}</div>`;
+          calendarDays.forEach((d) => {
+            const iso = toIsoDate(d);
+            const appointmentsInSlot = (byDay.get(iso) || []).filter((a) => Number(a.startTime.slice(11, 13)) === hour);
+            const visible = appointmentsInSlot.slice(0, CALENDAR_MAX_VISIBLE_PER_SLOT);
+            const overflowCount = appointmentsInSlot.length - visible.length;
+
+            const chips = visible.map((appointment) => {
+              const existingCase = casedAppointmentIds.get(appointment.id);
+              const timeLabel = appointment.startTime.slice(11, 16);
+              const borderColor = APPOINTMENT_STATUS_COLORS[appointment.status] || 'rgba(255,255,255,0.5)';
+              const title = `${timeLabel} ${appointment.patient} — ${appointment.provider} — ${appointment.reason || ''}`.replace(/"/g, '&quot;');
+              const cls = existingCase ? 'cw-chip has-case' : 'cw-chip';
+              return `<div class="${cls}" style="border-left-color:${borderColor}" title="${title}" onclick="App.showAppointmentDetail('${appointment.id}')">${timeLabel} ${appointment.patient}</div>`;
+            }).join('');
+
+            const moreChip = overflowCount > 0
+              ? `<div class="cw-more-chip" onclick='App.showSlotList(${JSON.stringify(appointmentsInSlot.map((a) => a.id))})'>+${overflowCount} more</div>`
+              : '';
+
+            html += `<div class="cw-cell">${chips}${moreChip}</div>`;
+          });
+        }
+
+        document.getElementById('calendarGrid').innerHTML = html;
+
+        const unscheduledContainer = document.getElementById('calendarUnscheduled');
+        unscheduledContainer.innerHTML = unscheduled.length
+          ? `<p><small><strong>Unscheduled:</strong> ${unscheduled.map((a) => a.patient).join(', ')}</small></p>`
+          : '';
+      }
+
+      async function createCaseFromAppointment(appointmentId) {
+        const res = await fetch('/api/cases', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ appointmentId }),
+        });
+        const payload = await res.json();
+        if (!res.ok) {
+          alert(payload.message || 'Unable to create case.');
+          await loadCases();
+          return;
+        }
+        await loadCases();
+        viewCase(payload.case.id);
+      }
+
+      function renderCaseModal(caseItem) {
+        const historyHtml = caseItem.statusHistory.map((entry) =>
+          `<div class="history-item">${new Date(entry.at).toLocaleString()} — ${entry.status}</div>`
+        ).join('');
+
+        const statusOptions = caseStatuses.map((status) =>
+          `<option value="${status}" ${status === caseItem.status ? 'selected' : ''}>${status}</option>`
+        ).join('');
+
+        document.getElementById('caseModalBody').innerHTML = `
+          <div class="modal-row"><span>Case ID</span><span>${caseItem.id}</span></div>
+          <div class="modal-row"><span>Appointment ID</span><span>${caseItem.appointmentId}</span></div>
+          <div class="modal-row"><span>Patient</span><span>${caseItem.patientName}</span></div>
+          <div class="modal-row"><span>Patient ID</span><span>${caseItem.patientId ?? '—'}</span></div>
+          <div class="modal-row"><span>Provider</span><span>${caseItem.providerName}</span></div>
+          <div class="modal-row"><span>Department</span><span>${caseItem.department}</span></div>
+          <div class="modal-row"><span>Appointment date</span><span>${caseItem.appointmentDate} ${caseItem.appointmentStartTime ? caseItem.appointmentStartTime.slice(11, 16) : ''}</span></div>
+          <div class="modal-row"><span>Reason</span><span>${caseItem.reason || '—'}</span></div>
+          <div class="modal-row"><span>Visit type</span><span>${caseItem.visitType || '—'}</span></div>
+          <div class="modal-row"><span>Athena patient case</span><span>${caseItem.athenaPatientCaseId ? `${caseItem.athenaPatientCaseId} (${caseItem.athenaPatientCaseLinkState || 'linked'})` : (caseItem.athenaPatientCaseLinkState || 'not linked')}</span></div>
+          <div class="modal-row"><span>Athena case subject</span><span>${caseItem.athenaPatientCaseSubject || '—'}</span></div>
+          <div class="modal-row"><span>Athena case status</span><span>${caseItem.athenaPatientCaseStatus || '—'}</span></div>
+          <div class="modal-row"><span>Created</span><span>${new Date(caseItem.createdAt).toLocaleString()}</span></div>
+          <div class="modal-row"><span>Created by</span><span>${caseItem.createdBy || '—'}</span></div>
+          <div class="modal-row" style="align-items:center;">
+            <span>Status</span>
+            <span class="actions" style="gap:8px;">
+              <select id="caseStatusSelect">${statusOptions}</select>
+              <button class="small" onclick="App.updateCaseStatusFromModal('${caseItem.id}')">Update</button>
+            </span>
+          </div>
+          <h4 style="margin-bottom: 4px;">Status history</h4>
+          ${historyHtml}
+        `;
+      }
+
+      async function viewCase(caseId) {
+        const res = await fetch(`/api/cases/${caseId}`);
+        if (!res.ok) {
+          alert('Unable to load case.');
+          return;
+        }
+        const payload = await res.json();
+        openCaseId = caseId;
+        renderCaseModal(payload.case);
+        document.getElementById('caseModalOverlay').classList.remove('hidden');
+      }
+
+      async function updateCaseStatusFromModal(caseId) {
+        const status = document.getElementById('caseStatusSelect').value;
+        const res = await fetch(`/api/cases/${caseId}/status`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status }),
+        });
+        const payload = await res.json();
+        if (!res.ok) {
+          alert(payload.message || 'Unable to update case status.');
+          return;
+        }
+        renderCaseModal(payload.case);
+        await loadCases();
+      }
+
+      function closeCaseModal() {
+        openCaseId = null;
+        document.getElementById('caseModalOverlay').classList.add('hidden');
+      }
+
+      function closeCaseModalIfBackdrop(event) {
+        if (event.target.id === 'caseModalOverlay') {
+          closeCaseModal();
+        }
+      }
+
+      async function logout() {
+        await fetch('/auth/logout', { method: 'POST' });
+        setAuthStatus('Not signed in', '');
+        setSignInEnabled(true);
+        document.getElementById('authMessage').textContent = '';
+        document.getElementById('dashboard').classList.add('hidden');
+        calendarLoaded = false;
+        calendarAppointments = [];
+        calendarAnchorDate = null;
+        calendarDays = [];
+        calendarViewMode = 'week';
+        calendarDepartmentId = '';
+        departmentOptions = [];
+        clearTimeout(calendarDebounceTimer);
+        document.getElementById('calendarModeWeekBtn').classList.add('active');
+        document.getElementById('calendarModeDayBtn').classList.remove('active');
+      }
+
+      window.addEventListener('DOMContentLoaded', checkAuth);
+
+      // Everything above is private to this closure. Only what markup actually needs
+      // to invoke (onclick/onchange handlers) is exposed, and only through this one
+      // namespaced object - nothing else leaks onto window/console.
+      window.App = {
+        startSsoLogin: () => {
+          if (!document.getElementById('signInBtn').disabled) {
+            window.location.href = '/auth/saml/login';
+          }
+        },
+        logout,
+        showTab,
+        loadAppointments,
+        loadCases,
+        calendarNavigate,
+        calendarToday,
+        setCalendarViewMode,
+        onCalendarDepartmentChange,
+        calendarJumpToDate,
+        closeCaseModalIfBackdrop,
+        closeCaseModal,
+        closeAppointmentDetailIfBackdrop,
+        closeAppointmentDetail,
+        viewCase,
+        createCaseFromAppointment,
+        showAppointmentDetail,
+        showSlotList,
+        updateCaseStatusFromModal,
+        scrollToCases,
+        scrollToAppointments,
+      };
+    })();
+    </script>
+  </body>
+</html>

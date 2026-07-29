@@ -1,0 +1,24 @@
+{
+  "activity": [
+    {
+      "id": 1,
+      "caseId": "bf1e7b7b-58f7-4956-ac97-a79673bb8a2f",
+      "action": "create",
+      "actor": "Test User",
+      "details": {
+        "appointmentId": "apt-1001"
+      },
+      "createdAt": "2026-07-29T04:49:22.860Z"
+    },
+    {
+      "id": 2,
+      "caseId": "bf1e7b7b-58f7-4956-ac97-a79673bb8a2f",
+      "action": "athena:link",
+      "actor": null,
+      "details": {
+        "athenaPatientCaseId": "240644"
+      },
+      "createdAt": "2026-07-29T04:49:22.867Z"
+    }
+  ]
+}
