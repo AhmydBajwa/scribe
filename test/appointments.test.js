@@ -310,6 +310,60 @@ test('caches the access token instead of requesting a new one on every call', as
   }
 });
 
+test('shares one in-flight Athena token request across concurrent callers', async () => {
+  resetAthenaCachesForTests();
+  const originalFetch = global.fetch;
+  let requestCount = 0;
+  global.fetch = async () => {
+    requestCount += 1;
+    return { ok: true, status: 200, json: async () => ({ access_token: 'shared-token', expires_in: 3600 }) };
+  };
+
+  try {
+    const options = { baseUrl: 'sandbox.athenahealth.com', clientId: 'id', clientSecret: 'secret', scope: 'scope' };
+    const [first, second, third] = await Promise.all([
+      getAthenaAccessToken(options),
+      getAthenaAccessToken(options),
+      getAthenaAccessToken(options),
+    ]);
+    assert.deepEqual([first, second, third], ['shared-token', 'shared-token', 'shared-token']);
+    assert.equal(requestCount, 1);
+  } finally {
+    global.fetch = originalFetch;
+    resetAthenaCachesForTests();
+  }
+});
+
+test('backs off after a network failure instead of retrying every dashboard request', async () => {
+  resetAthenaCachesForTests();
+  const originalFetch = global.fetch;
+  const originalMock = process.env.USE_MOCK_ATHENA;
+  const originalCooldown = process.env.ATHENA_FAILURE_COOLDOWN_MS;
+  let requestCount = 0;
+  process.env.USE_MOCK_ATHENA = 'false';
+  process.env.ATHENA_FAILURE_COOLDOWN_MS = '60000';
+  global.fetch = async () => {
+    requestCount += 1;
+    throw new TypeError('fetch failed');
+  };
+
+  try {
+    const first = await getDashboardAppointments();
+    const second = await getDashboardAppointments();
+    assert.equal(first.source, 'sample');
+    assert.equal(second.source, 'sample');
+    assert.equal(requestCount, 1);
+    assert.match(second.message, /temporarily paused/i);
+  } finally {
+    global.fetch = originalFetch;
+    if (originalMock === undefined) delete process.env.USE_MOCK_ATHENA;
+    else process.env.USE_MOCK_ATHENA = originalMock;
+    if (originalCooldown === undefined) delete process.env.ATHENA_FAILURE_COOLDOWN_MS;
+    else process.env.ATHENA_FAILURE_COOLDOWN_MS = originalCooldown;
+    resetAthenaCachesForTests();
+  }
+});
+
 test(
   'reports when the dashboard is using seeded fallback data',
   withMockAthena(async () => {

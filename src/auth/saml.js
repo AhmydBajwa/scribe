@@ -1,6 +1,8 @@
 const crypto = require('crypto');
 const { initSamlEntities } = require('./samlEntities');
 const { getPublicUserByEmail } = require('./users');
+const { getUserForSession } = require('./practiceRoles');
+const { logActivity } = require('../cases/cases');
 
 const sessions = new Map();
 
@@ -36,11 +38,17 @@ async function handleSAMLACS(req, res) {
       return res.status(401).send('SSO sign-in succeeded, but no local account matches this identity.');
     }
 
-    const sessionId = createSession(user);
+    const sessionId = createSession(getUserForSession(user));
     res.cookie('sessionId', sessionId, {
       httpOnly: true,
       sameSite: 'lax',
     });
+
+    logActivity(null, 'admin:login', user?.name || null, {
+      role: user?.role || null,
+      email: extract.nameID,
+    });
+
     res.redirect('/');
   } catch (error) {
     res.status(401).send(`SSO sign-in failed: ${error.message}`);
