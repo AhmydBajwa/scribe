@@ -10,7 +10,8 @@ const DATA_DIR = path.join(__dirname, '..', '..', 'data');
 const CASES_PATH = path.join(DATA_DIR, 'cases.json');
 const ACTIVITY_PATH = path.join(DATA_DIR, 'case_activity.json');
 const AUDIO_DIR = audioStorage.AUDIO_DIR;
-const MAX_AUDIO_BYTES = 15 * 1024 * 1024;
+const MAX_AUDIO_BYTES = Number(process.env.MAX_AUDIO_UPLOAD_MB || 50) * 1024 * 1024;
+const MAX_AUDIO_DURATION_MS = Number(process.env.MAX_AUDIO_DURATION_MINUTES || 60) * 60 * 1000;
 const DEFAULT_PRACTICE_ID = () => String(process.env.ATHENAHEALTH_PRACTICE_ID || 'default');
 const ATHENA_LIFECYCLE_STATUSES = ['REVIEW', 'CLOSED'];
 
@@ -54,21 +55,30 @@ function ensureDataDir() {
   if (!fs.existsSync(ACTIVITY_PATH)) fs.writeFileSync(ACTIVITY_PATH, JSON.stringify({ activity: [] }, null, 2));
 }
 
-function mimeToExtension(mimeType) {
+function mimeToExtension(mimeType, fileName = '') {
   const normalized = String(mimeType || '').toLowerCase();
   if (normalized.includes('webm')) return '.webm';
   if (normalized.includes('wav')) return '.wav';
   if (normalized.includes('ogg')) return '.ogg';
   if (normalized.includes('mp4') || normalized.includes('m4a')) return '.m4a';
+  if (normalized.includes('mpeg') || normalized.includes('mp3')) return '.mp3';
+  const fromFileName = path.extname(String(fileName || '')).toLowerCase();
+  if (['.mp3', '.webm', '.wav', '.ogg', '.mp4', '.m4a'].includes(fromFileName)) return fromFileName;
   return '.dat';
 }
 
 const AUDIO_SOURCES = ['dashboard', 'mobile'];
-const ALLOWED_AUDIO_MIME_TYPES = ['audio/webm', 'audio/wav', 'audio/ogg', 'audio/mp4', 'audio/m4a'];
+const ALLOWED_AUDIO_MIME_TYPES = ['audio/webm', 'audio/wav', 'audio/x-wav', 'audio/ogg', 'audio/mp4', 'audio/m4a', 'audio/mpeg', 'audio/mp3', 'audio/x-mpeg'];
 
-function isAllowedAudioMimeType(mimeType) {
+function isAllowedAudioMimeType(mimeType, fileName = '') {
   const normalized = String(mimeType || '').toLowerCase().split(';')[0].trim();
-  return ALLOWED_AUDIO_MIME_TYPES.includes(normalized);
+  if (ALLOWED_AUDIO_MIME_TYPES.includes(normalized)) return true;
+  // Browser file pickers sometimes provide an empty or generic MIME type for
+  // valid local audio. Permit only a recognized audio extension in that case.
+  if (!normalized || normalized === 'application/octet-stream') {
+    return /\.(?:mp3|webm|wav|ogg|mp4|m4a)$/i.test(String(fileName));
+  }
+  return false;
 }
 
 function decodeAudioPayload(audioData) {
@@ -350,14 +360,14 @@ function attachCaseAudio(caseId, { audioData, mimeType, durationMs, recordedAt, 
   if (buffer.length > MAX_AUDIO_BYTES) {
     return { ok: false, status: 413, message: `Audio file is too large. Maximum size is ${Math.round(MAX_AUDIO_BYTES / (1024 * 1024))}MB.` };
   }
-  if (!isAllowedAudioMimeType(mimeType)) {
+  if (!isAllowedAudioMimeType(mimeType, fileName)) {
     return { ok: false, status: 415, message: `Unsupported audio type. Use one of: ${ALLOWED_AUDIO_MIME_TYPES.join(', ')}` };
   }
   if (!AUDIO_SOURCES.includes(source)) {
     return { ok: false, status: 400, message: 'source must be dashboard or mobile.' };
   }
-  if (durationMs != null && (!Number.isFinite(Number(durationMs)) || Number(durationMs) < 0 || Number(durationMs) > 10 * 60 * 1000)) {
-    return { ok: false, status: 400, message: 'durationMs must be between 0 and 600000.' };
+  if (durationMs != null && (!Number.isFinite(Number(durationMs)) || Number(durationMs) < 0 || Number(durationMs) > MAX_AUDIO_DURATION_MS)) {
+    return { ok: false, status: 400, message: `durationMs must be between 0 and ${MAX_AUDIO_DURATION_MS}.` };
   }
 
   const store = readStore();
@@ -368,7 +378,7 @@ function attachCaseAudio(caseId, { audioData, mimeType, durationMs, recordedAt, 
 
   const now = new Date().toISOString();
   const recordingId = crypto.randomUUID();
-  const extension = mimeToExtension(mimeType);
+  const extension = mimeToExtension(mimeType, fileName);
   const safeRecordedAt = recordedAt || now;
   const storage = audioStorage.save({ caseId, recordingId, extension, buffer });
 
@@ -393,7 +403,8 @@ function attachCaseAudio(caseId, { audioData, mimeType, durationMs, recordedAt, 
   store.cases[idx].audioRecordings.push(recording);
   const transcript = {
     id: crypto.randomUUID(), caseId: String(caseId), audioRecordingId: recording.id,
-    status: 'queued', rawText: null, cleanedText: null, speakerSections: [], transcriptProvider: null,
+    status: 'queued', rawText: null, cleanedText: null, segments: [], rawSpeakerSections: [], speakerSections: [], transcriptProvider: null,
+    processing: { stage: 'queued', percent: 0, startedAt: null, updatedAt: now, completedAt: null },
     language: 'en', confidence: null, cleaningMetadata: null, createdAt: now, transcribedAt: null,
     cleanedAt: null, reviewedAt: null, reviewedBy: null, failureMessage: null,
   };
@@ -436,7 +447,8 @@ function queueTranscriptForRecording(caseId, audioRecordingId = null, actor = nu
   const now = new Date().toISOString();
   const transcript = {
     id: crypto.randomUUID(), caseId: String(caseId), audioRecordingId: recording.id,
-    status: 'queued', rawText: null, cleanedText: null, speakerSections: [], transcriptProvider: null,
+    status: 'queued', rawText: null, cleanedText: null, segments: [], rawSpeakerSections: [], speakerSections: [], transcriptProvider: null,
+    processing: { stage: 'queued', percent: 0, startedAt: null, updatedAt: now, completedAt: null },
     language: 'en', confidence: null, cleaningMetadata: null, createdAt: now, transcribedAt: null,
     cleanedAt: null, reviewedAt: null, reviewedBy: null, failureMessage: null,
   };
@@ -458,30 +470,55 @@ function setTranscriptState(caseId, transcriptId, patch, actor = null, action = 
 }
 
 function markTranscriptTranscribing(caseId, transcriptId, actor) {
-  return setTranscriptState(caseId, transcriptId, { status: 'transcribing', failureMessage: null }, actor, 'transcript:transcribing');
+  const now = new Date().toISOString();
+  return setTranscriptState(caseId, transcriptId, { status: 'transcribing', failureMessage: null, processing: { stage: 'transcribing', activeStages: ['transcribing'], percent: 15, startedAt: getTranscript(caseId, transcriptId)?.processing?.startedAt || now, updatedAt: now, completedAt: null } }, actor, 'transcript:transcribing');
 }
-
-function storeRawTranscript(caseId, transcriptId, { text, segments, confidence, provider, language } = {}, actor) {
+function markTranscriptParallelProcessing(caseId, transcriptId, actor) {
+  const now = new Date().toISOString();
+  return setTranscriptState(caseId, transcriptId, { status: 'transcribing', failureMessage: null, processing: { stage: 'transcribing', activeStages: ['transcribing', 'diarizing'], percent: 15, startedAt: getTranscript(caseId, transcriptId)?.processing?.startedAt || now, updatedAt: now, completedAt: null } }, actor, 'transcript:parallel-processing', { stages: ['transcribing', 'diarizing'] });
+}
+function markTranscriptDiarizing(caseId, transcriptId, actor) {
+  const now = new Date().toISOString();
+  return setTranscriptState(caseId, transcriptId, { status: 'diarizing', failureMessage: null, processing: { ...(getTranscript(caseId, transcriptId)?.processing || {}), stage: 'diarizing', activeStages: ['diarizing'], percent: 65, updatedAt: now } }, actor, 'transcript:diarizing');
+}
+function storeDiarizedSpeakerSections(caseId, transcriptId, speakerSections, actor) {
   const current = getTranscript(caseId, transcriptId);
   if (!current) return { ok: false, status: 404, message: 'Transcript not found.' };
-  if (current.rawText) return { ok: false, status: 409, message: 'Raw transcript is immutable once stored.' };
+  return setTranscriptState(caseId, transcriptId, {
+    status: 'raw-ready', rawSpeakerSections: Array.isArray(speakerSections) ? speakerSections : [], speakerSections: Array.isArray(speakerSections) ? speakerSections : [],
+  }, actor, 'transcript:diarized', { sectionCount: Array.isArray(speakerSections) ? speakerSections.length : 0 });
+}
+function markTranscriptCleaning(caseId, transcriptId, actor) {
   const now = new Date().toISOString();
-  return setTranscriptState(caseId, transcriptId, { status: 'raw-ready', rawText: String(text || ''), speakerSections: Array.isArray(segments) ? segments : [], confidence: confidence ?? null, transcriptProvider: provider || null, language: language || 'en', transcribedAt: now }, actor, 'transcript:raw-ready');
+  return setTranscriptState(caseId, transcriptId, { status: 'cleaning', processing: { ...(getTranscript(caseId, transcriptId)?.processing || {}), stage: 'cleaning', activeStages: ['cleaning'], percent: 85, updatedAt: now } }, actor, 'transcript:cleaning');
+}
+
+function storeRawTranscript(caseId, transcriptId, { text, segments, speakerSections, confidence, provider, language } = {}, actor) {
+  const current = getTranscript(caseId, transcriptId);
+  if (!current) return { ok: false, status: 404, message: 'Transcript not found.' };
+  if (current.rawText !== null && current.rawText !== undefined) return { ok: false, status: 409, message: 'Raw transcript is immutable once stored.' };
+  const now = new Date().toISOString();
+  return setTranscriptState(caseId, transcriptId, {
+    status: 'raw-ready', rawText: String(text || ''), segments: Array.isArray(segments) ? segments : [],
+    rawSpeakerSections: Array.isArray(speakerSections) ? speakerSections : [], speakerSections: Array.isArray(speakerSections) ? speakerSections : [], confidence: confidence ?? null,
+    transcriptProvider: provider || null, language: language || 'en', transcribedAt: now,
+  }, actor, 'transcript:raw-ready');
 }
 
 function cleanCaseTranscript(caseId, transcriptId, actor) {
   const current = getTranscript(caseId, transcriptId);
   if (!current) return { ok: false, status: 404, message: 'Transcript not found.' };
-  if (!current.rawText) return { ok: false, status: 409, message: 'Raw transcript is not ready.' };
+  if (current.rawText === null || current.rawText === undefined) return { ok: false, status: 409, message: 'Raw transcript is not ready.' };
   const cleaned = cleanTranscript(current.rawText); const now = new Date().toISOString();
-  return setTranscriptState(caseId, transcriptId, { status: 'review-required', cleanedText: cleaned.cleanedText, cleaningMetadata: { rulesApplied: cleaned.rulesApplied, cleanerVersion: cleaned.cleanerVersion }, cleanedAt: now }, actor, 'transcript:cleaned', { rulesApplied: cleaned.rulesApplied });
+  const speakerSections = (current.rawSpeakerSections || current.speakerSections || []).map((section) => ({ ...section, text: cleanTranscript(section.text).cleanedText }));
+  return setTranscriptState(caseId, transcriptId, { status: 'review-required', cleanedText: cleaned.cleanedText, speakerSections, processing: { ...(current.processing || {}), stage: 'review-required', activeStages: [], percent: 100, updatedAt: now, completedAt: now }, cleaningMetadata: { rulesApplied: cleaned.rulesApplied, cleanerVersion: cleaned.cleanerVersion, cleanedAt: now }, cleanedAt: now }, actor, 'transcript:cleaned', { rulesApplied: cleaned.rulesApplied });
 }
 
 function editCleanedTranscript(caseId, transcriptId, cleanedText, actor) {
   if (!String(cleanedText || '').trim()) return { ok: false, status: 400, message: 'Cleaned transcript text is required.' };
   const current = getTranscript(caseId, transcriptId);
   if (!current) return { ok: false, status: 404, message: 'Transcript not found.' };
-  if (!current.rawText) return { ok: false, status: 409, message: 'Raw transcript is not ready.' };
+  if (current.rawText === null || current.rawText === undefined) return { ok: false, status: 409, message: 'Raw transcript is not ready.' };
   return setTranscriptState(caseId, transcriptId, { status: 'review-required', cleanedText: String(cleanedText).trim(), cleanedAt: new Date().toISOString() }, actor, 'transcript:edited');
 }
 
@@ -492,7 +529,7 @@ function approveTranscript(caseId, transcriptId, actor) {
   return setTranscriptState(caseId, transcriptId, { status: 'approved', reviewedAt: new Date().toISOString(), reviewedBy: actor || null }, actor, 'transcript:approved');
 }
 
-function failTranscript(caseId, transcriptId, error, actor) { return setTranscriptState(caseId, transcriptId, { status: 'failed', failureMessage: error || 'Transcription failed.' }, actor, 'transcript:failed', { message: error }); }
+function failTranscript(caseId, transcriptId, error, actor, failedStage = null) { const now = new Date().toISOString(); const current = getTranscript(caseId, transcriptId); return setTranscriptState(caseId, transcriptId, { status: 'failed', failureMessage: error || 'Transcription failed.', processing: { ...(current?.processing || {}), activeStages: [], failedStage: failedStage || current?.processing?.stage || current?.status || 'queued', stage: 'failed', updatedAt: now, completedAt: now } }, actor, 'transcript:failed', { message: error }); }
 
 function getCasePromptInput(caseId, transcriptId = null) {
   const caseRecord = getCase(caseId); if (!caseRecord) return { ok: false, status: 404, message: 'Case not found.' };
@@ -624,6 +661,10 @@ module.exports = {
   getTranscript,
   queueTranscriptForRecording,
   markTranscriptTranscribing,
+  markTranscriptParallelProcessing,
+  markTranscriptDiarizing,
+  storeDiarizedSpeakerSections,
+  markTranscriptCleaning,
   storeRawTranscript,
   cleanCaseTranscript,
   editCleanedTranscript,

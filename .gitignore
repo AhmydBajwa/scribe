@@ -1,0 +1,16 @@
+# Secrets and machine-specific configuration
+.env
+.env.*
+!.env.example
+
+# Runtime patient data, uploaded recordings, sessions, and local model artifacts
+data/
+audio_to_test.mp3
+scripts/__pycache__/
+__pycache__/
+*.pyc
+
+# Node/Python local artifacts
+node_modules/
+.venv/
+coverage/

@@ -1,18 +1,33 @@
 const path = require('path');
 const express = require('express');
 const cookieParser = require('cookie-parser');
-const { initiateSAMLLogin, handleSAMLACS, getSAMLMetadata, requireAuth } = require('./src/auth/saml');
+const { initiateSAMLLogin, handleSAMLACS, getSAMLMetadata, requireAuth, destroySession, clearSessionCookieOptions } = require('./src/auth/saml');
 const idpRouter = require('./src/auth/idp');
 const { getDashboardAppointments, listDepartments, listProviders, syncAthenaPatientCaseForAppointment, getAthenaPatientById, getAthenaProviderById, getAthenaDepartmentById, createAthenaPatientCase, searchAthenaPatients, createAthenaPatient, getCachedAppointmentById, getMockAppointments, appendAthenaPatientCaseActionNote } = require('./src/appointments/athena');
-const { CASE_STATUSES, ATHENA_LIFECYCLE_STATUSES, ALLOWED_TRANSITIONS, createCase, listCases, getCase, listCaseActivity, listAdminInbox, appendCaseNote, recordCaseAction, updateCaseStatus, updateAthenaLifecycleStatus, updateClinicalData, attachCaseAudio, getLatestCaseAudio, discardLatestCaseAudio, getTranscript, queueTranscriptForRecording, markTranscriptTranscribing, storeRawTranscript, cleanCaseTranscript, editCleanedTranscript, approveTranscript, failTranscript, getCasePromptInput, applyAthenaPatientCaseLink, applyAthenaPatientLink, logActivity, isTestMode } = require('./src/cases/cases');
+const { CASE_STATUSES, ATHENA_LIFECYCLE_STATUSES, ALLOWED_TRANSITIONS, createCase, listCases, getCase, listCaseActivity, listAdminInbox, appendCaseNote, recordCaseAction, updateCaseStatus, updateAthenaLifecycleStatus, updateClinicalData, attachCaseAudio, getLatestCaseAudio, discardLatestCaseAudio, getTranscript, queueTranscriptForRecording, markTranscriptTranscribing, markTranscriptParallelProcessing, markTranscriptDiarizing, markTranscriptCleaning, storeRawTranscript, storeDiarizedSpeakerSections, cleanCaseTranscript, editCleanedTranscript, approveTranscript, failTranscript, getCasePromptInput, applyAthenaPatientCaseLink, applyAthenaPatientLink, logActivity, isTestMode } = require('./src/cases/cases');
 const { upsertPatientReference, resetPatientRefsForTests } = require('./src/patients/patientRefs');
 const { defaultPracticeId, isPracticeAdmin, listMembers, setMemberRole } = require('./src/auth/practiceRoles');
 const { getFeedHealth, drainChangeFeed, consumeEvents } = require('./src/cases/feed');
 const audioStorage = require('./src/cases/audioStorage');
 const { transcribeAudio } = require('./src/transcripts/transcription');
+const { diarizeAudio } = require('./src/transcripts/diarization');
+const { alignSpeakerSections } = require('./src/transcripts/speakerAlignment');
 
 const app = express();
 const port = process.env.PORT || 3000;
+const transcriptJobs = new Map();
+
+app.disable('x-powered-by');
+app.use((req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  res.setHeader('Permissions-Policy', 'camera=(), geolocation=(), microphone=(self)');
+  if (process.env.NODE_ENV === 'production') {
+    res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+  }
+  next();
+});
 
 // A Scribel case is only fully connected once it has an Athena patient case.
 // Prefer an existing Athena case for an appointment, then create one when the
@@ -66,8 +81,8 @@ if (isTestMode) {
   };
 }
 
-app.use(express.json({ limit: '25mb' }));
-app.use(express.urlencoded({ extended: true, limit: '25mb' }));
+app.use(express.json({ limit: `${Math.max(75, Number(process.env.MAX_AUDIO_UPLOAD_MB || 50) * 1.4)}mb` }));
+app.use(express.urlencoded({ extended: true, limit: `${Math.max(75, Number(process.env.MAX_AUDIO_UPLOAD_MB || 50) * 1.4)}mb` }));
 app.use(cookieParser());
 app.use(express.static(path.join(__dirname, 'public')));
 
@@ -80,7 +95,8 @@ app.get('/auth/saml/login', initiateSAMLLogin);
 app.post('/auth/saml/acs', handleSAMLACS);
 app.get('/auth/saml/metadata', getSAMLMetadata);
 app.post('/auth/logout', (req, res) => {
-  res.clearCookie('sessionId');
+  destroySession(req.cookies?.sessionId);
+  res.clearCookie('sessionId', clearSessionCookieOptions());
   res.json({ ok: true, message: 'Signed out successfully.' });
 });
 
@@ -399,6 +415,7 @@ function handleCaseAudioUpload(req, res) {
 
   const persisted = getCase(caseId);
   const transcript = (persisted?.transcripts || []).find((item) => item.audioRecordingId === result.recording.id) || null;
+  if (transcript) queueTranscriptProcessing(caseId, transcript.id, req.user?.name || null);
   res.status(result.status).json({ ok: true, case: persisted || statusResult.case || result.case, audio: result.recording, transcript, message: 'Audio saved and transcription queued.' });
 }
 
@@ -443,26 +460,79 @@ async function processTranscript(caseId, transcriptId, actor) {
   const transcript = getTranscript(caseId, transcriptId);
   const caseRecord = getCase(caseId);
   if (!caseRecord || !transcript) return { ok: false, status: 404, message: 'Case or transcript not found.' };
-  if (transcript.rawText) return { ok: false, status: 409, message: 'This transcript has already been transcribed. Review or clean it instead.', transcript };
+  if (transcript.rawText !== null && transcript.rawText !== undefined && transcript.status !== 'failed') return { ok: false, status: 409, message: 'This transcript has already been transcribed. Review or clean it instead.', transcript };
   const recording = (caseRecord.audioRecordings || []).find((item) => item.id === transcript.audioRecordingId);
   const audioPath = audioStorage.resolve(recording);
-  markTranscriptTranscribing(caseId, transcript.id, actor);
-  updateCaseStatus(caseId, 'Transcript Cleaning', actor);
-  try {
-    const result = await transcribeAudio({ audioPath, mimeType: recording?.mimeType, language: transcript.language || 'en' });
-    const raw = storeRawTranscript(caseId, transcript.id, result, actor);
-    if (!raw.ok) return raw;
+    updateCaseStatus(caseId, 'Transcript Cleaning', actor);
+    try {
+      let result = null;
+      let diarizationSegments = null;
+      if (transcript.rawText === null || transcript.rawText === undefined) {
+        // These jobs only read the source audio, so run them together. Cleaning is
+        // deliberately still gated below until both have completed successfully.
+        markTranscriptParallelProcessing(caseId, transcript.id, actor);
+        const [transcription, diarization] = await Promise.allSettled([
+          transcribeAudio({ audioPath, mimeType: recording?.mimeType, language: transcript.language || 'en' }),
+          diarizeAudio({ audioPath }),
+        ]);
+        if (transcription.status === 'fulfilled') result = transcription.value;
+        if (result) {
+          const raw = storeRawTranscript(caseId, transcript.id, result, actor);
+          if (!raw.ok) return raw;
+        }
+        if (diarization.status === 'fulfilled') diarizationSegments = diarization.value;
+        if (diarization.status === 'rejected') {
+          const error = new Error(diarization.reason?.message || 'Local speaker diarization failed.');
+          error.processingStage = 'diarizing';
+          throw error;
+        }
+        if (transcription.status === 'rejected') {
+          const error = new Error(transcription.reason?.message || 'Local transcription failed.');
+          error.processingStage = 'transcribing';
+          throw error;
+        }
+      } else {
+        markTranscriptDiarizing(caseId, transcript.id, actor);
+        diarizationSegments = await diarizeAudio({ audioPath });
+      }
+      const current = getTranscript(caseId, transcript.id);
+    const speakerSections = alignSpeakerSections(current.segments || result?.segments || [], diarizationSegments);
+    const diarized = storeDiarizedSpeakerSections(caseId, transcript.id, speakerSections, actor);
+    if (!diarized.ok) return diarized;
+    markTranscriptCleaning(caseId, transcript.id, actor);
     const cleaned = cleanCaseTranscript(caseId, transcript.id, actor);
     if (!cleaned.ok) return cleaned;
     updateCaseStatus(caseId, 'Review Required', actor);
     return { ok: true, status: 200, transcript: getTranscript(caseId, transcript.id) };
   } catch (error) {
-    failTranscript(caseId, transcript.id, error.message, actor);
-    return { ok: false, status: 502, message: error.message, transcript: getTranscript(caseId, transcript.id) };
+    console.error(`Transcript provider failed for case ${caseId}, transcript ${transcript.id}:`, error.message);
+      const failedStage = error.processingStage || getTranscript(caseId, transcript.id)?.processing?.stage;
+      const missingHuggingFaceToken = /HF_TOKEN|HUGGINGFACE_TOKEN|accepting the model terms/i.test(error.message || '');
+      const failureMessage = failedStage === 'diarizing'
+        ? (missingHuggingFaceToken
+          ? 'Audio transcription completed, but local speaker diarization needs a free Hugging Face access token. Add HF_TOKEN to .env after accepting the pyannote model terms, then retry. No OpenAI key or cloud transcription is used.'
+          : 'Audio transcription completed, but local speaker diarization failed. The raw transcript was preserved; fix diarization and retry.')
+        : 'The local transcription provider could not process this audio. Please retry.';
+      failTranscript(caseId, transcript.id, failureMessage, actor, failedStage);
+    return { ok: false, status: 502, message: failureMessage, transcript: getTranscript(caseId, transcript.id) };
   }
 }
 
-app.post('/api/cases/:id/transcripts', requireAuth, async (req, res) => {
+function queueTranscriptProcessing(caseId, transcriptId, actor) {
+  const jobKey = `${caseId}:${transcriptId}`;
+  if (transcriptJobs.has(jobKey)) return false;
+  transcriptJobs.set(jobKey, true);
+  setImmediate(async () => {
+    try {
+      await processTranscript(caseId, transcriptId, actor);
+    } finally {
+      transcriptJobs.delete(jobKey);
+    }
+  });
+  return true;
+}
+
+app.post('/api/cases/:id/transcripts', requireAuth, (req, res) => {
   const caseRecord = getCase(req.params.id);
   let transcriptId = req.body?.transcriptId || (caseRecord?.transcripts || []).at(-1)?.id;
   if (!transcriptId) {
@@ -470,8 +540,13 @@ app.post('/api/cases/:id/transcripts', requireAuth, async (req, res) => {
     if (!queued.ok) return res.status(queued.status).json({ ok: false, message: queued.message });
     transcriptId = queued.transcript.id;
   }
-  const result = await processTranscript(req.params.id, transcriptId, req.user?.name || null);
-  res.status(result.status).json({ ok: result.ok, message: result.message || null, transcript: result.transcript || null });
+  const transcript = getTranscript(req.params.id, transcriptId);
+  if (!transcript) return res.status(404).json({ ok: false, message: 'Transcript not found.' });
+  if (transcript.rawText !== null && transcript.rawText !== undefined && transcript.status !== 'failed') {
+    return res.status(409).json({ ok: false, message: 'This transcript has already been transcribed. Review or clean it instead.', transcript });
+  }
+  const scheduled = queueTranscriptProcessing(req.params.id, transcriptId, req.user?.name || null);
+  res.status(202).json({ ok: true, message: scheduled ? 'Transcription queued.' : 'Transcription is already processing.', transcript: getTranscript(req.params.id, transcriptId) });
 });
 
 app.get('/api/cases/:id/transcripts/latest', requireAuth, (req, res) => {
@@ -673,4 +748,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { app };
+module.exports = { app, processTranscript, queueTranscriptProcessing };

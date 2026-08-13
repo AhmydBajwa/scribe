@@ -58,8 +58,14 @@ test('processes, reviews, and approves a transcript through the HTTP API', async
       method: 'POST', headers: { 'Content-Type': 'application/json', Cookie: cookie }, body: JSON.stringify({ transcriptId: uploaded.transcript.id }),
     });
     const transcript = await processed.json();
-    assert.equal(processed.status, 200);
-    assert.equal(transcript.transcript.status, 'review-required');
+    assert.ok([202, 409].includes(processed.status));
+    let latest = transcript.transcript;
+    for (let attempt = 0; attempt < 20 && latest?.status !== 'review-required'; attempt += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      const latestResponse = await fetch(`${baseUrl}/api/cases/${caseRecord.id}/transcripts/latest`, { headers: { Cookie: cookie } });
+      latest = (await latestResponse.json()).transcript;
+    }
+    assert.equal(latest.status, 'review-required');
     const approved = await fetch(`${baseUrl}/api/cases/${caseRecord.id}/transcripts/${uploaded.transcript.id}/approve`, { method: 'POST', headers: { Cookie: cookie } });
     assert.equal(approved.status, 200);
     const prompt = await fetch(`${baseUrl}/api/cases/${caseRecord.id}/prompt-input?transcriptId=${uploaded.transcript.id}`, { headers: { Cookie: cookie } });

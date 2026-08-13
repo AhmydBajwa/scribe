@@ -296,7 +296,7 @@ test('rejects audio upload requests without a case id or with oversized audio', 
     });
     assert.equal(missingCaseRes.status, 400);
 
-    const oversizedAudio = Buffer.alloc(16 * 1024 * 1024, 1).toString('base64');
+    const oversizedAudio = Buffer.alloc(51 * 1024 * 1024, 1).toString('base64');
     const oversizedRes = await fetch(`http://127.0.0.1:${port}/api/cases/${created.case.id}/audio`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Cookie: cookieHeader },

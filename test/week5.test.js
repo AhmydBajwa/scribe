@@ -34,3 +34,22 @@ test('attaches mobile audio and rejects missing or invalid source metadata', () 
   const unsupported = attachCaseAudio(caseRecord.id, { audioData: Buffer.from('voice').toString('base64'), mimeType: 'text/plain', source: 'mobile' });
   assert.equal(unsupported.status, 415);
 });
+
+test('accepts MP3 uploads and supports longer imported audio', () => {
+  const caseRecord = createCase({ patientName: 'Imported Audio Patient' }).case;
+  const result = attachCaseAudio(caseRecord.id, {
+    audioData: Buffer.from('mp3 audio').toString('base64'), mimeType: 'audio/mpeg', source: 'dashboard', durationMs: 20 * 60 * 1000, fileName: 'visit.mp3',
+  }, 'Provider');
+  assert.equal(result.ok, true);
+  assert.match(result.recording.storedFileName, /\.mp3$/);
+  assert.equal(result.recording.durationMs, 20 * 60 * 1000);
+});
+
+test('accepts a valid MP3 filename when a browser reports generic MIME metadata', () => {
+  const caseRecord = createCase({ patientName: 'Browser MP3 Patient' }).case;
+  const result = attachCaseAudio(caseRecord.id, {
+    audioData: Buffer.from('mp3 audio').toString('base64'), mimeType: 'application/octet-stream', source: 'dashboard', durationMs: 1000, fileName: 'audio_to_test.mp3',
+  }, 'Provider');
+  assert.equal(result.ok, true);
+  assert.match(result.recording.storedFileName, /\.mp3$/);
+});

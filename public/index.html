@@ -364,7 +364,7 @@
     <div class="info-bar">
       <span id="authMessage"></span>
       <span id="metadataLink">SP metadata: <a href="/auth/saml/metadata">/auth/saml/metadata</a> · IdP metadata: <a href="/idp/metadata">/idp/metadata</a></span>
-      &nbsp;·&nbsp;<span id="integrationMode">Integration mode: fallback sample appointments until ATHENA_BASE_URL is configured.</span>
+      &nbsp;·&nbsp;<span id="integrationMode">Integration mode: fallback sample appointments until ATHENAHEALTH_BASE_URL is configured.</span>
     </div>
     <div class="container">
       <div id="landingPage" class="landing-page">
@@ -851,7 +851,7 @@
       let intakeForceCreate = false;
       let intakeContext = { caseId: null, appointmentId: null };
       const MAX_RECORDING_SECONDS = 10 * 60;
-      const MAX_AUDIO_BYTES = 15 * 1024 * 1024;
+      const MAX_AUDIO_BYTES = 50 * 1024 * 1024;
       const CALENDAR_MAX_VISIBLE_PER_SLOT = 2;
 
       function statusPill(status, toneMap) {
@@ -1443,6 +1443,42 @@
         return btoa(binary);
       }
 
+      function audioMimeType(file) {
+        const name = String(file.name || '').toLowerCase();
+        if (name.endsWith('.mp3')) return 'audio/mpeg';
+        if (name.endsWith('.wav')) return 'audio/wav';
+        if (name.endsWith('.ogg')) return 'audio/ogg';
+        if (name.endsWith('.m4a')) return 'audio/m4a';
+        if (name.endsWith('.mp4')) return 'audio/mp4';
+        return file.type || 'application/octet-stream';
+      }
+
+      async function getAudioDurationMs(file) {
+        return new Promise((resolve) => {
+          const url = URL.createObjectURL(file);
+          const audio = document.createElement('audio');
+          audio.preload = 'metadata';
+          audio.onloadedmetadata = () => { URL.revokeObjectURL(url); resolve(Number.isFinite(audio.duration) ? Math.round(audio.duration * 1000) : null); };
+          audio.onerror = () => { URL.revokeObjectURL(url); resolve(null); };
+          audio.src = url;
+        });
+      }
+
+      async function selectAudioFile(input) {
+        const file = input?.files?.[0];
+        if (!file) return;
+        if (file.size > MAX_AUDIO_BYTES) {
+          setVoiceStatus(`Audio file is too large. The upload limit is ${Math.round(MAX_AUDIO_BYTES / (1024 * 1024))}MB.`, 'error');
+          input.value = '';
+          return;
+        }
+        const durationMs = await getAudioDurationMs(file);
+        audioPendingUpload = { blob: file, mimeType: audioMimeType(file), durationMs, recordedAt: new Date(file.lastModified || Date.now()).toISOString(), fileName: file.name };
+        setVoiceStatus(`Ready to upload ${file.name}.`);
+        await uploadVoiceRecording();
+        input.value = '';
+      }
+
       function uploadVoicePayload(url, body, onProgress) {
         return new Promise((resolve, reject) => {
           const xhr = new XMLHttpRequest();
@@ -1486,12 +1522,12 @@
               recordedAt: payload.recordedAt,
               source: voiceCaptureSource,
               sizeBytes: payload.blob.size,
-              fileName: `voice-capture.${audioExtensionForMimeType(payload.mimeType)}`,
+              fileName: payload.fileName || `voice-capture.${audioExtensionForMimeType(payload.mimeType)}`,
             }, setVoiceUploadProgress);
           audioPendingUpload = null;
           setVoiceUploadProgress(null);
           setVoiceStatus(response.message || 'Audio uploaded.');
-          if (response.transcript?.id) await startTranscriptProcessing(caseId, response.transcript.id);
+          if (response.transcript?.id) pollTranscriptStatus(caseId, response.transcript.id);
           await viewCase(caseId, true);
           await loadAdminInbox();
         } catch (error) {
@@ -1506,11 +1542,50 @@
         try {
           const res = await fetch(`/api/cases/${caseId}/transcripts`, { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ transcriptId }) });
           const payload = await res.json();
-          if (!res.ok) throw new Error(payload.message || 'Transcription failed.');
-          setVoiceStatus('Transcript is ready for review.');
+          if (!res.ok && res.status !== 409) throw new Error(payload.message || 'Transcription failed.');
+          await pollTranscriptStatus(caseId, transcriptId || payload.transcript?.id);
         } catch (error) {
           setVoiceStatus(`${error.message || 'Transcription failed.'} Retry from the transcript review panel.`, 'error');
         }
+      }
+
+      async function pollTranscriptStatus(caseId, transcriptId) {
+        if (!transcriptId) return;
+        for (let attempt = 0; attempt < 180; attempt += 1) {
+          const res = await fetch(`/api/cases/${caseId}/transcripts/latest`, { credentials: 'same-origin' });
+          const payload = await res.json().catch(() => ({}));
+          const transcript = payload.transcript;
+          if (!res.ok || !transcript || transcript.id !== transcriptId) return;
+          updateTranscriptProgressUi(transcript);
+          if (transcript.status === 'review-required' || transcript.status === 'approved') {
+            setVoiceStatus('Transcript is ready for review.');
+            return;
+          }
+          if (transcript.status === 'failed') {
+            setVoiceStatus(transcript.failureMessage || 'Transcription failed. Retry from the transcript review panel.', 'error');
+            return;
+          }
+          await new Promise((resolve) => setTimeout(resolve, 1000));
+        }
+        setVoiceStatus('Transcription is still processing. Open Transcript Review to check its status.');
+      }
+
+      function formatProcessingDuration(startedAt, completedAt) {
+        if (!startedAt) return 'Waiting to start';
+        const seconds = Math.max(0, Math.floor((new Date(completedAt || Date.now()) - new Date(startedAt)) / 1000));
+        return seconds >= 60 ? `${Math.floor(seconds / 60)}m ${seconds % 60}s` : `${seconds}s`;
+      }
+
+      function updateTranscriptProgressUi(transcript) {
+        const processing = transcript?.processing || {};
+        const activeStages = Array.isArray(processing.activeStages) && processing.activeStages.length ? processing.activeStages : [processing.stage || transcript.status || 'queued'];
+        const fill = document.getElementById('transcriptProgressFill');
+        const label = document.getElementById('transcriptProgressLabel');
+        const elapsed = document.getElementById('transcriptProgressElapsed');
+        if (!fill || !label || !elapsed) return;
+        fill.style.width = `${Math.max(0, Math.min(100, Number(processing.percent) || 0))}%`;
+        label.textContent = transcript.status === 'review-required' ? 'Ready for review' : activeStages.map((stage) => ({ transcribing: 'Transcribing audio', diarizing: 'Detecting speakers', cleaning: 'Cleaning transcript' }[stage] || stage)).join(' + ');
+        elapsed.textContent = `Elapsed: ${formatProcessingDuration(processing.startedAt, processing.completedAt)}`;
       }
 
       async function retryVoiceUpload() {
@@ -2812,6 +2887,8 @@
               <button id="voicePauseBtn" class="secondary small" onclick="App.pauseVoiceCapture()">Pause</button>
               <button id="voiceResumeBtn" class="secondary small" onclick="App.resumeVoiceCapture()">Resume</button>
               <button id="voiceStopBtn" class="secondary small" onclick="App.stopVoiceCapture()">Stop</button>
+              <button class="secondary small" onclick="document.getElementById('voiceFileInput').click()">Upload audio file</button>
+              <input id="voiceFileInput" type="file" accept="audio/mpeg,.mp3,audio/webm,.webm,audio/wav,.wav,audio/ogg,.ogg,audio/mp4,.mp4,audio/m4a,.m4a" style="display:none" onchange="App.selectAudioFile(this)" />
               <button id="voiceDiscardBtn" class="secondary small" onclick="App.discardVoiceRecording()">Discard</button>
             </div>
             <div class="voice-meta">
@@ -2826,7 +2903,7 @@
               <button class="secondary small" onclick="App.discardVoiceRecording()">Discard local recording</button>
             </div>
             ${voiceCaptureSource === 'dashboard' ? `<button class="secondary small" onclick="App.openMobileVoiceCapture('${caseItem.id}')">Open mobile capture view</button>` : '<div class="timeline-meta">Mobile capture mode · this recording will be labelled Mobile.</div>'}
-            <div style="margin-top: 8px; color: var(--text-muted); font-size: 12px;">Limit: 10 minutes or 15 MB. Microphone permission is required.</div>
+            <div style="margin-top: 8px; color: var(--text-muted); font-size: 12px;">Upload MP3, WebM, WAV, OGG, MP4, or M4A (up to 50 MB / 60 minutes). Microphone recordings remain limited to 10 minutes.</div>
           </div>
         `;
 
@@ -2877,14 +2954,27 @@
         const latestTranscript = Array.isArray(caseItem.transcripts) && caseItem.transcripts.length
           ? caseItem.transcripts[caseItem.transcripts.length - 1] : null;
         const escapeTranscript = (value) => String(value || '').replace(/[&<>]/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[char]));
+        const processing = latestTranscript?.processing || {};
+        const activeStages = Array.isArray(processing.activeStages) ? processing.activeStages : [];
+        const stages = [['queued', 'Queued'], ['transcribing', 'Transcribing audio'], ['diarizing', 'Detecting speakers'], ['cleaning', 'Cleaning transcript'], ['review-required', 'Ready for review']];
+        const stageIndex = stages.findIndex(([id]) => id === (processing.stage || latestTranscript?.status));
+        const transcriptProgressHtml = latestTranscript ? `
+          <div class="detail-card" style="margin:12px 0;background:#f8fafc;">
+            <div class="detail-card-header"><div><h4>Processing progress</h4><p>Live stage progress and elapsed time. CPU transcription is the longest step for long recordings.</p></div></div>
+            <div style="height:9px;background:#dbeafe;border-radius:999px;overflow:hidden;"><div id="transcriptProgressFill" style="height:100%;width:${Math.max(0, Math.min(100, Number(processing.percent) || 0))}%;background:#0f4c81;transition:width .3s ease;"></div></div>
+            <div class="actions" style="justify-content:space-between;margin-top:8px;"><strong id="transcriptProgressLabel">${escapeTranscript(activeStages.length ? activeStages.map((stage) => ({ transcribing: 'Transcribing audio', diarizing: 'Detecting speakers', cleaning: 'Cleaning transcript' }[stage] || stage)).join(' + ') : (processing.stage || latestTranscript.status))}</strong><span id="transcriptProgressElapsed" class="timeline-meta">Elapsed: ${formatProcessingDuration(processing.startedAt, processing.completedAt)}</span></div>
+            <div class="timeline-meta" style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;">${stages.map(([id, title], index) => `<span class="status-pill status-pill--${activeStages.includes(id) ? 'info' : index < stageIndex ? 'success' : 'neutral'}">${title}</span>`).join('')}</div>
+          </div>` : '';
         const transcriptPanelHtml = latestTranscript ? `
           <section id="transcriptReviewPanel" class="detail-card" style="margin-top: 12px;">
             <div class="detail-card-header"><div><h4>Transcript review</h4><p>Status: ${latestTranscript.status}. Raw text is retained as an immutable source record.</p></div></div>
             <div class="detail-row"><span>Provider</span><span>${latestTranscript.transcriptProvider || 'Pending'}</span></div>
             <div class="detail-row"><span>Captured source</span><span>${(latestAudio && latestAudio.source) || 'Unknown'}</span></div>
+            ${transcriptProgressHtml}
             ${latestTranscript.failureMessage ? `<div class="voice-error">${escapeTranscript(latestTranscript.failureMessage)}</div>` : ''}
             <label style="display:block; margin-top:12px; font-weight:600;">Raw transcript</label>
             <pre style="white-space:pre-wrap; max-height:220px; overflow:auto; background:#f8fafc; padding:12px; border-radius:8px;">${escapeTranscript(latestTranscript.rawText || 'Awaiting transcription…')}</pre>
+            ${(latestTranscript.rawSpeakerSections || latestTranscript.speakerSections || []).length ? `<label style="display:block; margin-top:12px; font-weight:600;">Speaker sections</label><div class="timeline-meta" style="max-height:180px; overflow:auto;">${(latestTranscript.rawSpeakerSections || latestTranscript.speakerSections).map((section) => `<div><strong>${escapeTranscript(section.speaker)}</strong> · ${Math.round(section.startMs / 1000)}s–${Math.round(section.endMs / 1000)}s<br/>${escapeTranscript(section.text)}</div>`).join('<hr style="border:0;border-top:1px solid #e2e8f0;"/>')}</div>` : '<div class="timeline-meta">Speaker diarization is pending or unavailable for this transcript.</div>'}
             <label style="display:block; margin-top:12px; font-weight:600;">Cleaned transcript</label>
             <textarea id="cleanedTranscriptInput" rows="10" style="width:100%; box-sizing:border-box; padding:10px; border:1px solid #cbd5e1; border-radius:8px;" ${latestTranscript.status === 'approved' ? 'readonly' : ''}>${escapeTranscript(latestTranscript.cleanedText || '')}</textarea>
             <div class="timeline-meta">Cleaning: ${(latestTranscript.cleaningMetadata?.rulesApplied || []).join(', ') || 'Not yet run'}</div>
@@ -2995,6 +3085,10 @@
           window.history.pushState({ caseId }, '', transcriptReviewMode ? `/cases/${encodeURIComponent(caseId)}/transcript` : voiceCaptureSource === 'mobile' ? `/cases/${encodeURIComponent(caseId)}/record` : `/cases/${encodeURIComponent(caseId)}`);
         }
         if (transcriptReviewMode) document.getElementById('transcriptReviewPanel')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        const latestTranscript = (payload.case.transcripts || []).at(-1);
+        if (latestTranscript && ['queued', 'transcribing', 'diarizing', 'cleaning'].includes(latestTranscript.status)) {
+          pollTranscriptStatus(caseId, latestTranscript.id);
+        }
       }
 
       function openMobileVoiceCapture(caseId) {
@@ -3189,6 +3283,7 @@
         saveCleanedTranscript,
         approveTranscript,
         startVoiceCapture,
+        selectAudioFile,
         pauseVoiceCapture,
         resumeVoiceCapture,
         stopVoiceCapture,
