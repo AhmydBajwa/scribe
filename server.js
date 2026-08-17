@@ -12,11 +12,15 @@ const audioStorage = require('./src/cases/audioStorage');
 const { transcribeAudio } = require('./src/transcripts/transcription');
 const { diarizeAudio } = require('./src/transcripts/diarization');
 const { alignSpeakerSections } = require('./src/transcripts/speakerAlignment');
+const { validateProductionEnvironment } = require('./src/config/environment');
+
+validateProductionEnvironment();
 
 const app = express();
 const port = process.env.PORT || 3000;
 const transcriptJobs = new Map();
 
+if (process.env.NODE_ENV === 'production') app.set('trust proxy', 1);
 app.disable('x-powered-by');
 app.use((req, res, next) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');

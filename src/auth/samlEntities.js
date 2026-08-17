@@ -10,12 +10,13 @@ samlify.setSchemaValidator({ validate: () => Promise.resolve('SUCCESS') });
 const cache = new Map();
 
 function getBaseUrl(req) {
+  if (process.env.APP_BASE_URL) return process.env.APP_BASE_URL.replace(/\/$/, '');
   if (req) {
     const host = req.headers.host;
     const protocol = req.protocol || 'http';
     return `${protocol}://${host}`;
   }
-  return process.env.APP_BASE_URL || `http://localhost:${process.env.PORT || 3000}`;
+  return `http://localhost:${process.env.PORT || 3000}`;
 }
 
 async function initSamlEntities(req) {
@@ -59,4 +60,3 @@ async function initSamlEntities(req) {
 }
 
 module.exports = { initSamlEntities };
-

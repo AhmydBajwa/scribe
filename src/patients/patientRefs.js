@@ -1,8 +1,9 @@
 const crypto = require('crypto');
 const path = require('path');
 const fs = require('fs');
+const { dataDirectory } = require('../config/runtime');
 
-const DATA_DIR = path.join(__dirname, '..', '..', 'data');
+const DATA_DIR = dataDirectory();
 const PATIENT_REFS_PATH = path.join(DATA_DIR, 'patient_refs.json');
 
 const IS_TEST = !!(

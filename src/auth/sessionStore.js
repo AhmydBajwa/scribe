@@ -1,9 +1,10 @@
 const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
+const { dataDirectory } = require('../config/runtime');
 
 const IS_TEST = Boolean(process.env.NODE_TEST_CONTEXT) || process.argv.includes('--test');
-const SESSION_PATH = path.join(__dirname, '..', '..', 'data', 'sessions.json');
+const SESSION_PATH = path.join(dataDirectory(), 'sessions.json');
 const SESSION_TTL_MS = Math.max(60_000, Number(process.env.SESSION_TTL_MS || 8 * 60 * 60 * 1000));
 let memorySessions = new Map();
 

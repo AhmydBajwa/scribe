@@ -4,8 +4,9 @@
 // development can submit normalized events to drainChangeFeed directly.
 const fs = require('fs');
 const path = require('path');
+const { dataDirectory } = require('../config/runtime');
 
-const DATA_DIR = path.join(__dirname, '..', '..', 'data');
+const DATA_DIR = dataDirectory();
 const STORE_PATH = path.join(DATA_DIR, 'patient_case_feed.json');
 
 function readStore() {

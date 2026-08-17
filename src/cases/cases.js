@@ -5,8 +5,9 @@ const { getCachedAppointmentById } = require('../appointments/athena');
 const audioStorage = require('./audioStorage');
 const { cleanTranscript } = require('../transcripts/cleaning');
 const { buildPromptInput } = require('../transcripts/promptInput');
+const { dataDirectory } = require('../config/runtime');
 
-const DATA_DIR = path.join(__dirname, '..', '..', 'data');
+const DATA_DIR = dataDirectory();
 const CASES_PATH = path.join(DATA_DIR, 'cases.json');
 const ACTIVITY_PATH = path.join(DATA_DIR, 'case_activity.json');
 const AUDIO_DIR = audioStorage.AUDIO_DIR;

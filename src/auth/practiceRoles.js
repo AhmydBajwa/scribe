@@ -1,8 +1,9 @@
 const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
+const { dataDirectory } = require('../config/runtime');
 
-const DATA_DIR = path.join(__dirname, '..', '..', 'data');
+const DATA_DIR = dataDirectory();
 const STORE_PATH = path.join(DATA_DIR, 'practice_members.json');
 const defaultPracticeId = () => String(process.env.ATHENAHEALTH_PRACTICE_ID || 'default');
 

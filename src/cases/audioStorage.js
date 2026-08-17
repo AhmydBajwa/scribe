@@ -3,13 +3,14 @@
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+const { dataDirectory } = require('../config/runtime');
 
 const IS_TEST = Boolean(process.env.NODE_TEST_CONTEXT) || process.env.NODE_TEST === '1' || process.env.npm_lifecycle_event === 'test' || process.argv.includes('--test');
 // Test recordings must never share the production data directory: resetting a
 // test case must not erase a clinician's local recording.
 const AUDIO_DIR = IS_TEST
   ? path.join(os.tmpdir(), 'scribel-test-case-audio', String(process.pid))
-  : path.join(__dirname, '..', '..', 'data', 'case_audio');
+  : path.join(dataDirectory(), 'case_audio');
 
 function ensureDirectory(directory) {
   if (!fs.existsSync(directory)) fs.mkdirSync(directory, { recursive: true });

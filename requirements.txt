@@ -1,0 +1,4 @@
+faster-whisper>=1.1,<2
+pyannote.audio>=4,<5
+av>=14,<16
+numpy>=1.26,<3

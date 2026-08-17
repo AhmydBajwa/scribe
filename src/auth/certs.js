@@ -18,6 +18,19 @@ function readFromDisk() {
   return { privateKey, signingCert: stripPemArmor(certPem) };
 }
 
+function decodePem(value) {
+  if (!value) return null;
+  return value.includes('-----BEGIN') ? value.replace(/\\n/g, '\n') : Buffer.from(value, 'base64').toString('utf8');
+}
+
+function readFromEnvironment() {
+  const privateKey = decodePem(process.env.SAML_IDP_PRIVATE_KEY_B64 || process.env.SAML_IDP_PRIVATE_KEY);
+  const certPem = decodePem(process.env.SAML_IDP_CERT_B64 || process.env.SAML_IDP_CERT);
+  if (!privateKey && !certPem) return null;
+  if (!privateKey || !certPem) throw new Error('Both SAML_IDP_PRIVATE_KEY_B64 and SAML_IDP_CERT_B64 must be set together.');
+  return { privateKey, signingCert: stripPemArmor(certPem) };
+}
+
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -30,6 +43,9 @@ function sleep(ms) {
 // generating, which would otherwise risk two processes writing a mismatched
 // key/cert pair into the same two files.
 async function loadOrCreateIdpCertificate() {
+  const fromEnvironment = readFromEnvironment();
+  if (fromEnvironment) return fromEnvironment;
+  if (process.env.NODE_ENV === 'production') throw new Error('Production requires environment-managed SAML signing credentials.');
   if (fs.existsSync(KEY_PATH) && fs.existsSync(CERT_PATH)) {
     return readFromDisk();
   }
