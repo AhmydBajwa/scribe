@@ -16,10 +16,7 @@ function verifyPassword(password, stored) {
   return crypto.timingSafeEqual(hash, storedHash);
 }
 
-// Local IdP's user directory. Passwords are hashed (scrypt, random salt per
-// user) even though this is a demo - shown on the login page for convenience
-// since there's no separate account-provisioning flow.
-const users = [
+const developmentUsers = [
   {
     email: 'alex.morgan@northwindhealth.example',
     passwordHash: hashPassword('CoordinatorPass!23'),
@@ -35,6 +32,20 @@ const users = [
     organization: 'Northwind Health',
   },
 ];
+
+function loadUsers() {
+  const encoded = process.env.SCRIBEL_USERS_JSON;
+  if (!encoded) return process.env.NODE_ENV === 'production' ? [] : developmentUsers;
+  let configured;
+  try { configured = JSON.parse(encoded); } catch { throw new Error('SCRIBEL_USERS_JSON must contain a valid JSON array.'); }
+  if (!Array.isArray(configured)) throw new Error('SCRIBEL_USERS_JSON must contain a JSON array.');
+  return configured.map((user) => {
+    if (!user.email || !user.name || !user.role || (!user.password && !user.passwordHash)) throw new Error('Each SCRIBEL_USERS_JSON user requires email, name, role, and password or passwordHash.');
+    return { email: String(user.email).toLowerCase(), name: user.name, role: user.role, organization: user.organization || 'Scribel', passwordHash: user.passwordHash || hashPassword(String(user.password)) };
+  });
+}
+
+const users = loadUsers();
 
 function toPublicUser(user) {
   return { email: user.email, name: user.name, role: user.role, organization: user.organization };

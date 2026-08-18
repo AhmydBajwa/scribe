@@ -5,6 +5,9 @@ const {
   createCase,
   listCases,
   getCase,
+  listCaseActivity,
+  listAdminInbox,
+  logActivity,
   updateCaseStatus,
   resetCasesForTests,
 } = require('../src/cases/cases');
@@ -25,10 +28,20 @@ beforeEach(async () => {
   await primeAppointmentCache();
 });
 
-test('rejects case creation without an appointmentId', () => {
+test('rejects case creation without an appointmentId or patientName', () => {
   const result = createCase({});
   assert.equal(result.ok, false);
   assert.equal(result.status, 400);
+});
+
+test('creates a manual case when patientName is provided without an appointmentId', () => {
+  const result = createCase({ patientName: 'New Patient', createdBy: 'Tester' });
+  assert.equal(result.ok, true);
+  assert.equal(result.status, 201);
+  assert.equal(result.case.appointmentId, null);
+  assert.equal(result.case.patientName, 'New Patient');
+  assert.equal(result.case.status, 'New');
+  assert.equal(result.case.createdBy, 'Tester');
 });
 
 test('rejects case creation for an appointment that is not in the cached dashboard data', () => {
@@ -95,6 +108,21 @@ test('updates case status, records history, and rejects unknown statuses', () =>
   assert.equal(missingCase.status, 404);
 });
 
+test('records chronological activity entries and actor information', () => {
+  const created = createCase({ appointmentId: 'apt-1001', createdBy: 'Tester' });
+  const statusUpdate = updateCaseStatus(created.case.id, 'Voice Pending', 'Tester');
+
+  assert.equal(statusUpdate.ok, true);
+  const activity = listCaseActivity(created.case.id);
+  assert.equal(activity.length, 2);
+  assert.equal(activity[0].action, 'create');
+  assert.equal(activity[0].actor, 'Tester');
+  assert.equal(activity[1].action, 'status:update');
+  assert.equal(activity[1].actor, 'Tester');
+  assert.equal(activity[1].details.from, 'New');
+  assert.equal(activity[1].details.to, 'Voice Pending');
+});
+
 test('defines the full Week 3 case status lifecycle in order', () => {
   assert.deepEqual(CASE_STATUSES, [
     'New',
@@ -110,7 +138,7 @@ test('defines the full Week 3 case status lifecycle in order', () => {
 });
 
 test('exposes the case API over HTTP with auth and duplicate protection', async () => {
-  const sessionId = createSession({ id: 'test-user', name: 'Test User' });
+  const sessionId = createSession({ id: 'test-user', name: 'Test User', role: 'Clinic Administrator' });
   const server = app.listen(0);
   const { port } = server.address();
   const cookieHeader = `sessionId=${sessionId}`;
@@ -214,5 +242,134 @@ test('links a created case to the matching Athena patientcase when live Athena d
     server.close();
     global.fetch = originalFetch;
     process.env.USE_MOCK_ATHENA = originalUseMock;
+  }
+});
+
+test('uploads case audio, stores metadata, and logs audio captured', async () => {
+  const sessionId = createSession({ id: 'test-user', name: 'Test User', role: 'Clinic Administrator' });
+  const server = app.listen(0);
+  const { port } = server.address();
+  const cookieHeader = `sessionId=${sessionId}`;
+
+  try {
+    const created = createCase({ appointmentId: 'apt-1001', createdBy: 'Test User' });
+    const audioData = Buffer.from('sample voice audio').toString('base64');
+    const uploadRes = await fetch(`http://127.0.0.1:${port}/api/cases/${created.case.id}/audio`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Cookie: cookieHeader },
+      body: JSON.stringify({
+        audioData,
+        mimeType: 'audio/webm',
+        durationMs: 3210,
+        recordedAt: new Date().toISOString(),
+        source: 'dashboard',
+        sizeBytes: Buffer.byteLength('sample voice audio'),
+      }),
+    });
+    const payload = await uploadRes.json();
+
+    assert.equal(uploadRes.status, 201);
+    assert.equal(payload.audio.mimeType, 'audio/webm');
+    assert.equal(payload.audio.source, 'dashboard');
+    assert.equal(payload.audio.caseId, created.case.id);
+    assert.equal(payload.case.audioRecordings.length, 1);
+
+    const activity = listCaseActivity(created.case.id);
+    assert.equal(activity.some((entry) => entry.action === 'audio:captured'), true);
+  } finally {
+    server.close();
+  }
+});
+
+test('rejects audio upload requests without a case id or with oversized audio', async () => {
+  const sessionId = createSession({ id: 'test-user', name: 'Test User', role: 'Clinic Administrator' });
+  const server = app.listen(0);
+  const { port } = server.address();
+  const cookieHeader = `sessionId=${sessionId}`;
+
+  try {
+    const created = createCase({ appointmentId: 'apt-1001', createdBy: 'Test User' });
+    const missingCaseRes = await fetch(`http://127.0.0.1:${port}/api/cases/audio`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Cookie: cookieHeader },
+      body: JSON.stringify({ audioData: Buffer.from('sample').toString('base64') }),
+    });
+    assert.equal(missingCaseRes.status, 400);
+
+    const oversizedAudio = Buffer.alloc(51 * 1024 * 1024, 1).toString('base64');
+    const oversizedRes = await fetch(`http://127.0.0.1:${port}/api/cases/${created.case.id}/audio`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Cookie: cookieHeader },
+      body: JSON.stringify({ audioData: oversizedAudio, mimeType: 'audio/webm' }),
+    });
+    assert.equal(oversizedRes.status, 413);
+  } finally {
+    server.close();
+  }
+});
+
+test('returns a global admin inbox with recent admin activity', async () => {
+  const sessionId = createSession({ id: 'test-user', name: 'Test User', role: 'Clinic Administrator' });
+  const server = app.listen(0);
+  const { port } = server.address();
+  const cookieHeader = `sessionId=${sessionId}`;
+
+  try {
+    const created = createCase({ appointmentId: 'apt-1001', createdBy: 'Test User' });
+    const noteRes = await fetch(`http://127.0.0.1:${port}/api/cases/${created.case.id}/notes`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Cookie: cookieHeader },
+      body: JSON.stringify({ note: 'Please review before handoff.' }),
+    });
+    assert.equal(noteRes.status, 200);
+
+    const inboxRes = await fetch(`http://127.0.0.1:${port}/api/admin/inbox`, {
+      headers: { Cookie: cookieHeader },
+    });
+    const inboxPayload = await inboxRes.json();
+
+    assert.equal(inboxRes.status, 200);
+    assert.ok(Array.isArray(inboxPayload.entries));
+    assert.ok(inboxPayload.entries.some((entry) => entry.action === 'admin:note'));
+  } finally {
+    server.close();
+  }
+});
+
+test('logs admin login activity to the global admin inbox', () => {
+  logActivity(null, 'admin:login', 'Test Admin', { source: 'saml' });
+  const inbox = listAdminInbox({ limit: 20 });
+
+  assert.ok(Array.isArray(inbox));
+  assert.ok(inbox.some((entry) => entry.action === 'admin:login' && entry.actor === 'Test Admin'));
+});
+
+test('auto-selects a matching appointment id for manual case creation when none is supplied', async () => {
+  const sessionId = createSession({ id: 'test-user', name: 'Test User', role: 'Clinic Administrator' });
+  const server = app.listen(0);
+  const { port } = server.address();
+  const cookieHeader = `sessionId=${sessionId}`;
+
+  try {
+    const res = await fetch(`http://127.0.0.1:${port}/api/cases`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Cookie: cookieHeader },
+      body: JSON.stringify({
+        patientId: '9001',
+        providerId: '1',
+        departmentId: '1',
+        reason: 'Follow-up refill',
+        visitType: 'Follow-up',
+        appointmentDate: '2026-08-01',
+        appointmentStartTime: '2026-08-01T10:00:00',
+      }),
+    });
+    const payload = await res.json();
+
+    assert.equal(res.status, 201);
+    assert.equal(payload.case.appointmentId, 'apt-1001');
+    assert.equal(payload.case.patientName, 'Alicia Nguyen');
+  } finally {
+    server.close();
   }
 });

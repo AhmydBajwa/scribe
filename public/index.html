@@ -3,125 +3,441 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Athena SSO Dashboard</title>
+    <title>Scribel | Clinical workspace</title>
     <style>
+      :root {
+        --font-sans: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+        --font-display: Georgia, "Times New Roman", serif;
+        --bg: #f5f2eb;
+        --bg-elevated: #faf8f4;
+        --surface: #ffffff;
+        --surface-muted: #f5f1e8;
+        --surface-soft: #eee8dc;
+        --line: #ded6c8;
+        --line-strong: #ccc1b1;
+        --text: #24332d;
+        --text-muted: #68726b;
+        --text-soft: #849087;
+        --primary: #315f4d;
+        --primary-strong: #234a3b;
+        --primary-soft: #dcebe2;
+        --success: #2f855a;
+        --success-soft: #daf1e5;
+        --warning: #9a6b00;
+        --warning-soft: #f8ecd0;
+        --info: #2563eb;
+        --info-soft: #dbeafe;
+        --danger: #b42318;
+        --danger-soft: #fee4e2;
+        --purple: #6d5bd0;
+        --purple-soft: #ece8ff;
+        --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.05);
+        --shadow-md: 0 10px 28px rgba(50, 56, 44, 0.08);
+        --shadow-lg: 0 22px 48px rgba(50, 56, 44, 0.12);
+        --radius-sm: 8px;
+        --radius-md: 12px;
+        --radius-lg: 18px;
+        --space-1: 4px;
+        --space-2: 8px;
+        --space-3: 12px;
+        --space-4: 16px;
+        --space-5: 20px;
+        --space-6: 24px;
+        --space-7: 32px;
+        --space-8: 40px;
+        --text-xs: 12px;
+        --text-sm: 14px;
+        --text-md: 16px;
+        --text-lg: 18px;
+        --text-xl: 24px;
+      }
       * { box-sizing: border-box; }
-      body { font-family: -apple-system, "Segoe UI", Arial, sans-serif; margin: 0; background: #f4f7fb; color: #14213d; }
+      html { color-scheme: light; }
+      body { font-family: var(--font-sans); margin: 0; background:
+        radial-gradient(circle at top left, rgba(91, 137, 105, 0.12), transparent 28%),
+        linear-gradient(180deg, #fbfaf6 0%, var(--bg) 100%);
+        color: var(--text);
+        line-height: 1.5;
+        text-rendering: optimizeLegibility;
+        -webkit-font-smoothing: antialiased;
+      }
       .top-loading-bar { position: fixed; top: 0; left: 0; height: 3px; width: 100%; background: transparent; z-index: 100; overflow: hidden; }
-      .top-loading-bar::after { content: ''; display: block; height: 100%; width: 40%; background: #4f9cf0; transform: translateX(-100%); animation: none; }
+      .top-loading-bar::after { content: ''; display: block; height: 100%; width: 36%; background: linear-gradient(90deg, #7ab2da, var(--primary)); transform: translateX(-100%); animation: none; }
       .top-loading-bar.active::after { animation: loading-sweep 1.1s ease-in-out infinite; }
       @keyframes loading-sweep { 0% { transform: translateX(-100%); } 50% { transform: translateX(60%); } 100% { transform: translateX(250%); } }
-      .navbar { background: #0f4c81; color: white; padding: 14px 24px; display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; box-shadow: 0 2px 8px rgba(0,0,0,0.12); position: sticky; top: 0; z-index: 40; }
-      .navbar-brand h1 { margin: 0; font-size: 18px; }
-      .navbar-brand p { margin: 2px 0 0; font-size: 12px; color: #cbd8ea; }
+      .navbar {
+        background: rgba(36, 51, 45, 0.96);
+        color: white;
+        padding: 14px 24px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        flex-wrap: wrap;
+        box-shadow: var(--shadow-md);
+        position: sticky;
+        top: 0;
+        z-index: 40;
+        backdrop-filter: blur(10px);
+        border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      }
+      .navbar-brand h1 { margin: 0; font-family: var(--font-display); font-size: 24px; font-weight: 700; letter-spacing: -0.04em; }
+      .navbar-brand h1::before { content: ''; display: inline-block; width: 11px; height: 11px; margin: 0 8px 1px 0; border-radius: 50% 50% 50% 2px; background: #b9dfaa; transform: rotate(-35deg); }
+      .navbar-brand p { margin: 3px 0 0; font-size: 12px; color: rgba(235, 243, 250, 0.86); }
       .navbar-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-      .status-indicator { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 999px; font-size: 12px; font-weight: 600; background: rgba(255,255,255,0.12); color: white; }
+      .status-indicator { display: inline-flex; align-items: center; gap: 8px; padding: 7px 12px; border-radius: 999px; font-size: 12px; font-weight: 600; background: rgba(255,255,255,0.12); color: white; }
       .status-dot { width: 8px; height: 8px; border-radius: 50%; background: #94a3b8; flex-shrink: 0; }
-      .status-indicator.connected .status-dot { background: #4ade80; box-shadow: 0 0 0 3px rgba(74, 222, 128, 0.25); }
-      .status-indicator.error .status-dot { background: #f87171; }
-      .navbar button.primary, .navbar a.primary { background: white; color: #0f4c81; border: none; font-weight: 600; padding: 10px 12px; border-radius: 8px; }
-      .navbar button.primary:hover, .navbar a.primary:hover { background: #e6eef7; }
-      .navbar button.ghost { background: transparent; color: white; border: 1px solid rgba(255,255,255,0.4); }
+      .status-indicator.connected .status-dot { background: #86efac; box-shadow: 0 0 0 3px rgba(134, 239, 172, 0.2); }
+      .status-indicator.error .status-dot { background: #fda4af; }
+      .navbar button.primary, .navbar a.primary { background: white; color: var(--primary); border: none; font-weight: 700; padding: 10px 14px; border-radius: 10px; box-shadow: var(--shadow-sm); }
+      .navbar button.primary:hover, .navbar a.primary:hover { background: #f0f6fb; }
+      .navbar button.ghost { background: transparent; color: white; border: 1px solid rgba(255,255,255,0.28); }
       .navbar button.ghost:hover { background: rgba(255,255,255,0.1); }
-      .info-bar { max-width: 1100px; margin: 0 auto; padding: 10px 24px 0; font-size: 12px; color: #64748b; }
-      .info-bar a { color: #0f4c81; }
-      .container { max-width: 1100px; margin: 0 auto; padding: 24px; }
-      .card { background: white; border-radius: 12px; padding: 18px; box-shadow: 0 8px 24px rgba(0,0,0,0.06); margin-bottom: 18px; }
+      .info-bar { max-width: 1240px; margin: 0 auto; padding: 10px 24px 0; font-size: 12px; color: var(--text-muted); }
+      .info-bar a { color: var(--primary); }
+      .container { max-width: 1240px; margin: 0 auto; padding: var(--space-6); }
+      .landing-page { display: grid; gap: 18px; padding: 18px 0 10px; }
+      .landing-hero {
+        background: linear-gradient(135deg, #274c3d 0%, #315f4d 48%, #587d55 100%);
+        color: white;
+        border-radius: 20px;
+        padding: 30px;
+        box-shadow: 0 20px 45px rgba(39, 76, 61, 0.2);
+        position: relative;
+        overflow: hidden;
+      }
+      .landing-hero::after {
+        content: '';
+        position: absolute;
+        inset: auto -70px -90px auto;
+        width: 240px;
+        height: 240px;
+        border-radius: 50%;
+        background: rgba(255, 255, 255, 0.12);
+        filter: blur(0.5px);
+      }
+      .landing-hero-grid { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(280px, 0.9fr); gap: 20px; align-items: end; position: relative; z-index: 1; }
+      .landing-kicker { display: inline-flex; align-items: center; gap: 8px; padding: 6px 10px; border-radius: 999px; background: rgba(255,255,255,0.14); font-size: 12px; font-weight: 700; letter-spacing: 0.02em; text-transform: uppercase; }
+      .landing-hero h2 { margin: 14px 0 10px; font-size: clamp(30px, 5vw, 52px); line-height: 1.02; letter-spacing: -0.03em; }
+      .landing-hero p { margin: 0; max-width: 58ch; color: rgba(255,255,255,0.88); font-size: 16px; line-height: 1.6; }
+      .landing-hero-actions { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 20px; }
+      .landing-hero-actions .primary { background: #fffdf8; color: #234a3b; }
+      .landing-hero-actions .secondary { background: rgba(255,255,255,0.12); color: white; border-color: rgba(255,255,255,0.18); }
+      .landing-hero-actions .secondary:hover { background: rgba(255,255,255,0.2); }
+      .landing-panel { background: white; border-radius: 16px; padding: 18px; box-shadow: 0 8px 24px rgba(0,0,0,0.06); }
+      .landing-panel h3 { margin: 0 0 8px; color: var(--text); font-family: var(--font-display); font-size: 22px; }
+      .landing-panel ul { margin: 0; padding-left: 18px; color: #475569; line-height: 1.7; }
+      .landing-badges { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+      .landing-badge { background: white; border-radius: 16px; padding: 18px; box-shadow: var(--shadow-md); border: 1px solid rgba(15, 79, 124, 0.08); }
+      .landing-badge strong { display: block; margin-bottom: 6px; font-size: 18px; color: var(--primary); }
+      .landing-badge span { color: var(--text-muted); font-size: 14px; line-height: 1.55; }
+      .workspace-header,
+      .card,
+      .landing-panel,
+      .landing-badge { background: var(--surface); }
+      .workspace-header,
+      .card,
+      .landing-panel,
+      .landing-badge {
+        border: 1px solid rgba(199, 211, 224, 0.8);
+        box-shadow: var(--shadow-md);
+      }
+      .workspace-header { border-radius: 20px; padding: var(--space-5) var(--space-6); margin-bottom: var(--space-4); background: linear-gradient(180deg, #fffefb 0%, #faf7f0 100%); }
+      .workspace-header h2 { margin: 0; font-family: var(--font-display); font-size: 32px; letter-spacing: -0.04em; color: var(--text); }
+      .workspace-header p { margin: 6px 0 0; color: var(--text-muted); }
+      .workspace-header-top { display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; align-items: flex-start; }
+      .workspace-metrics { display: flex; gap: 10px; flex-wrap: wrap; }
+      .workspace-metric { padding: 10px 12px; border-radius: 14px; background: var(--surface-soft); border: 1px solid rgba(194, 207, 219, 0.8); min-width: 128px; }
+      .workspace-metric strong { display: block; font-size: 18px; color: var(--text); }
+      .workspace-metric span { color: var(--text-muted); font-size: 12px; }
+      .page-kicker,
+      .section-kicker { display: inline-flex; align-items: center; gap: 8px; font-size: 11px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-soft); }
+      .page-breadcrumb {
+        display: inline-flex;
+        align-items: center;
+        gap: var(--space-2);
+        margin-bottom: var(--space-3);
+        color: var(--text-muted);
+        font-size: var(--text-xs);
+        font-weight: 700;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+      }
+      .page-breadcrumb .separator { color: var(--text-soft); }
+      .section-heading { display: flex; justify-content: space-between; align-items: flex-start; gap: var(--space-3); margin-bottom: var(--space-3); }
+      .section-heading h3 { margin: 0; }
+      .section-heading p { margin: var(--space-1) 0 0; color: var(--text-muted); font-size: var(--text-sm); }
+      .page-kicker::before,
+      .section-kicker::before { content: ''; width: 18px; height: 1px; background: currentColor; opacity: 0.65; }
+      .page-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; flex-wrap: wrap; }
+      .page-header h2, .page-header h3 { margin: 0; letter-spacing: -0.02em; }
+      .page-subtitle { margin: 4px 0 0; color: var(--text-muted); }
+      .card { border-radius: 16px; padding: var(--space-4); margin-bottom: var(--space-4); }
+      .card h3 { margin: 0 0 2px; font-size: 18px; letter-spacing: -0.02em; }
+      .card > p:first-of-type { color: var(--text-muted); }
       .actions { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
-      .form-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-top: 10px; }
-      button, input, select { padding: 10px 12px; border-radius: 8px; border: 1px solid #cbd5e1; font: inherit; }
-      button { background: #0f4c81; color: white; cursor: pointer; transition: background 0.15s ease, opacity 0.15s ease; }
-      button:hover { background: #123f6b; }
+      .actions .secondary,
+      .actions .ghost,
+      .actions .danger,
+      .actions .primary { min-height: 42px; }
+      .form-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; margin-top: 12px; }
+      label { display: block; margin-bottom: 6px; font-size: 12px; font-weight: 700; color: var(--text-muted); letter-spacing: 0.01em; }
+      button, input, select, textarea { padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line); font: inherit; }
+      input, select, textarea { background: var(--surface); color: var(--text); box-shadow: inset 0 1px 0 rgba(15, 23, 42, 0.02); }
+      textarea { min-height: 104px; resize: vertical; }
+      button { background: var(--primary); color: white; cursor: pointer; transition: background 0.15s ease, opacity 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease; font-weight: 700; box-shadow: var(--shadow-sm); }
+      button:hover { background: var(--primary-strong); transform: translateY(-1px); box-shadow: 0 8px 18px rgba(13, 79, 124, 0.16); }
+      button:hover { background: var(--primary-strong); transform: translateY(-1px); box-shadow: 0 8px 18px rgba(13, 79, 124, 0.16); }
       button:disabled { opacity: 0.55; cursor: not-allowed; }
-      button.secondary { background: #e2e8f0; color: #14213d; }
-      button.secondary:hover { background: #d5dce6; }
-      button.small { padding: 6px 10px; font-size: 12px; }
-      button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid #4f9cf0; outline-offset: 1px; }
-      .pill { display: inline-block; padding: 6px 10px; border-radius: 999px; font-size: 12px; font-weight: bold; background: #e2e8f0; }
-      table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-      th, td { padding: 10px; border-bottom: 1px solid #e2e8f0; text-align: left; }
-      .table-scroll { max-height: 420px; overflow-y: auto; border: 1px solid #e2e8f0; border-radius: 8px; margin-top: 10px; }
+      button.secondary { background: var(--surface-soft); color: var(--text); border-color: var(--line); }
+      button.secondary:hover { background: #e8eef4; }
+      button.ghost { background: transparent; color: var(--primary); border-color: rgba(13, 79, 124, 0.25); }
+      button.ghost:hover { background: rgba(13, 79, 124, 0.06); }
+      button.danger { background: var(--danger); }
+      button.danger:hover { background: #992316; }
+      button.small { padding: 6px 10px; font-size: 12px; border-radius: 9px; }
+      button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px solid #7ab2da; outline-offset: 2px; }
+      .pill,
+      .status-pill { display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px; border-radius: 999px; font-size: 12px; font-weight: 700; border: 1px solid transparent; }
+      .status-pill--neutral { background: #edf2f7; color: #425466; border-color: #d8e1ea; }
+      .status-pill--info { background: var(--info-soft); color: #1e40af; border-color: #bfd6ff; }
+      .status-pill--warning { background: var(--warning-soft); color: #855c00; border-color: #f2d8a3; }
+      .status-pill--success { background: var(--success-soft); color: #256746; border-color: #b7e3cd; }
+      .status-pill--danger { background: var(--danger-soft); color: #9b1c12; border-color: #f7c7c2; }
+      .status-pill--purple { background: var(--purple-soft); color: #4f46a8; border-color: #d8d0ff; }
+      .table-sort { display: inline-flex; align-items: center; gap: 6px; background: transparent; border: none; color: inherit; padding: 0; box-shadow: none; }
+      .table-sort:hover { background: transparent; transform: none; color: var(--primary); }
+      .sort-indicator { font-size: 11px; color: var(--text-soft); }
+      table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 14px; }
+      th, td { padding: 12px 10px; border-bottom: 1px solid #e6edf3; text-align: left; vertical-align: top; }
+      th { color: var(--text-muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; font-weight: 800; }
+      tbody tr:nth-child(even) { background: #fbfdff; }
+      tbody tr:hover { background: #f3f8fc; }
+      .table-scroll { max-height: 420px; overflow-y: auto; border: 1px solid var(--line); border-radius: 12px; margin-top: 10px; background: var(--surface); box-shadow: var(--shadow-sm); }
       .table-scroll table { margin-top: 0; }
-      .table-scroll thead th { position: sticky; top: 0; background: #f8fafc; z-index: 1; box-shadow: 0 1px 0 #e2e8f0; }
+      .table-scroll thead th { position: sticky; top: 0; background: #f9fbfd; z-index: 1; box-shadow: 0 1px 0 #e2e8f0; }
       .table-scroll td { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 220px; }
       .summary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
-      .summary .box { background: #f8fafc; padding: 14px; border-radius: 8px; }
-      .modal-overlay { position: fixed; inset: 0; background: rgba(15, 23, 42, 0.5); display: flex; align-items: center; justify-content: center; z-index: 50; padding: 16px; }
-      .modal { background: white; border-radius: 12px; padding: 20px; max-width: 560px; width: 100%; max-height: 85vh; overflow-y: auto; }
-      .modal-row { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid #f1f5f9; }
-      .modal-row span:first-child { color: #64748b; }
-      .history-item { font-size: 12px; color: #475569; padding: 2px 0; }
-      .tabs { display: flex; gap: 4px; border-bottom: 1px solid #e2e8f0; margin-bottom: 18px; }
-      .tab-button { background: none; color: #64748b; border: none; border-radius: 6px 6px 0 0; padding: 11px 18px; font-weight: 600; font-size: 14px; border-bottom: 2px solid transparent; margin-bottom: -1px; transition: color 0.15s ease, background 0.15s ease, border-color 0.15s ease; }
-      .tab-button:hover { background: #eef3fa; color: #0f4c81; }
-      .tab-button.active { color: #0f4c81; border-bottom: 2px solid #0f4c81; background: #eef3fa; }
+      .summary .box { background: linear-gradient(180deg, #ffffff 0%, #f8fbfe 100%); padding: 14px; border-radius: 14px; border: 1px solid rgba(199, 211, 224, 0.82); box-shadow: var(--shadow-sm); }
+      .summary .box strong { display: block; font-size: 28px; line-height: 1; color: var(--text); }
+      .summary .box br { display: none; }
+      .summary .box { color: var(--text-muted); }
+      .modal-overlay { position: fixed; inset: 0; background: rgba(15, 23, 42, 0.58); display: flex; align-items: center; justify-content: center; z-index: 50; padding: 16px; backdrop-filter: blur(3px); }
+      .modal { background: white; border-radius: 18px; padding: 20px; max-width: 860px; width: 100%; max-height: 88vh; overflow-y: auto; box-shadow: var(--shadow-lg); }
+      .modal-row { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid #eef3f8; gap: 16px; }
+      .modal-row span:first-child { color: var(--text-muted); flex-shrink: 0; }
+      .history-item { font-size: 12px; color: var(--text-muted); padding: 2px 0; }
+      .tabs { display: flex; gap: 6px; border-bottom: 1px solid var(--line); margin-bottom: 18px; flex-wrap: wrap; }
+      .tab-button { background: transparent; color: var(--text-muted); border: 1px solid transparent; border-radius: 12px 12px 0 0; padding: 11px 18px; font-weight: 700; font-size: 14px; border-bottom: 2px solid transparent; margin-bottom: -1px; transition: color 0.15s ease, background 0.15s ease, border-color 0.15s ease; box-shadow: none; }
+      .tab-button:hover { background: rgba(13, 79, 124, 0.06); color: var(--primary); }
+      .tab-button.active { color: var(--primary); border-color: var(--line); border-bottom: 2px solid var(--primary); background: #fff; }
       .week-nav { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
       .week-nav-left { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
       .week-nav-controls { display: inline-flex; border: 1px solid #cbd5e1; border-radius: 8px; overflow: hidden; }
-      .week-nav-controls button { border: none; border-radius: 0; padding: 8px 12px; background: white; color: #14213d; }
-      .week-nav-controls button:hover { background: #eef3fa; }
+      .week-nav-controls button { border: none; border-radius: 0; padding: 8px 12px; background: white; color: var(--text); box-shadow: none; }
+      .week-nav-controls button:hover { background: #f2f7fb; transform: none; }
       .week-nav-controls button:not(:last-child) { border-right: 1px solid #e2e8f0; }
-      .week-nav-today { border: 1px solid #cbd5e1; background: white; color: #14213d; border-radius: 8px; font-weight: 600; padding: 8px 14px; }
-      .week-nav-today:hover { background: #eef3fa; }
+      .week-nav-today { border: 1px solid var(--line); background: white; color: var(--text); border-radius: 10px; font-weight: 700; padding: 8px 14px; }
+      .week-nav-today:hover { background: #f2f7fb; }
       .week-nav-title { font-size: 17px; font-weight: 700; margin: 0; }
       .week-nav-right { display: flex; align-items: center; gap: 8px; }
       .week-nav-right label { font-size: 12px; color: #64748b; font-weight: 600; }
       .calendar-week-grid { display: grid; grid-template-columns: 70px repeat(7, minmax(120px, 1fr)); }
-      .cw-header { position: sticky; top: 0; background: white; z-index: 2; font-weight: bold; text-align: center; padding: 8px 4px; border-bottom: 2px solid #e2e8f0; border-left: 1px solid #e2e8f0; font-size: 13px; }
-      .cw-header.today { color: #0f4c81; }
-      .cw-hour-label { padding: 4px 8px; font-size: 11px; color: #64748b; text-align: right; border-top: 1px solid #f1f5f9; border-left: 1px solid #f1f5f9; background: #fafbfc; }
-      .cw-cell { border-top: 1px solid #f1f5f9; border-left: 1px solid #f1f5f9; min-height: 44px; padding: 2px; display: flex; flex-wrap: wrap; align-items: flex-start; gap: 2px; }
-      .cw-chip { background: #0f4c81; color: white; border-radius: 4px; padding: 3px 5px; font-size: 11px; cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; transition: filter 0.1s ease, transform 0.1s ease; flex: 1 1 0; min-width: 46px; border-left: 3px solid rgba(255,255,255,0.5); }
+      .cw-header { position: sticky; top: 0; background: white; z-index: 2; font-weight: 800; text-align: center; padding: 8px 4px; border-bottom: 2px solid #e2e8f0; border-left: 1px solid #e2e8f0; font-size: 13px; color: var(--text-muted); }
+      .cw-header.today { color: var(--primary); }
+      .cw-hour-label { padding: 4px 8px; font-size: 11px; color: var(--text-soft); text-align: right; border-top: 1px solid #f1f5f9; border-left: 1px solid #f1f5f9; background: #fafbfc; }
+      .cw-cell { border-top: 1px solid #f1f5f9; border-left: 1px solid #f1f5f9; min-height: 44px; padding: 2px; display: flex; flex-wrap: wrap; align-items: flex-start; gap: 2px; background: #fff; }
+      .cw-chip { background: #0f4c81; color: white; border-radius: 6px; padding: 4px 6px; font-size: 11px; cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; transition: filter 0.1s ease, transform 0.1s ease; flex: 1 1 0; min-width: 46px; border-left: 3px solid rgba(255,255,255,0.5); box-shadow: var(--shadow-sm); }
       .cw-chip:hover { filter: brightness(1.15); transform: translateY(-1px); }
-      .cw-chip.has-case { background: #16a34a; }
-      .cw-more-chip { flex: 0 0 100%; background: #eef3fa; color: #0f4c81; border-radius: 4px; padding: 3px 6px; font-size: 10px; font-weight: 700; cursor: pointer; text-align: center; }
-      .cw-more-chip:hover { background: #dde8f7; }
-      .week-nav-toggle { display: inline-flex; border: 1px solid #cbd5e1; border-radius: 8px; overflow: hidden; }
-      .week-nav-toggle button { border: none; border-radius: 0; padding: 8px 14px; background: white; color: #64748b; font-weight: 600; font-size: 13px; }
+      .cw-chip.has-case { background: #157347; }
+      .cw-more-chip { flex: 0 0 100%; background: #eef5fb; color: var(--primary); border-radius: 6px; padding: 3px 6px; font-size: 10px; font-weight: 800; cursor: pointer; text-align: center; border: 1px solid #d5e4f1; }
+      .cw-more-chip:hover { background: #e3eef8; }
+      .week-nav-toggle { display: inline-flex; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: white; }
+      .week-nav-toggle button { border: none; border-radius: 0; padding: 8px 14px; background: white; color: var(--text-muted); font-weight: 700; font-size: 13px; box-shadow: none; }
       .week-nav-toggle button:not(:last-child) { border-right: 1px solid #e2e8f0; }
-      .week-nav-toggle button.active { background: #0f4c81; color: white; }
-      .week-nav-toggle button:hover:not(.active) { background: #eef3fa; }
+      .week-nav-toggle button.active { background: var(--primary); color: white; }
+      .week-nav-toggle button:hover:not(.active) { background: #f4f8fb; }
       .detail-row { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid #f1f5f9; gap: 12px; }
-      .detail-row span:first-child { color: #64748b; flex-shrink: 0; }
-      .slot-list-item { display: flex; justify-content: space-between; align-items: center; padding: 8px; border: 1px solid #e2e8f0; border-radius: 8px; margin-bottom: 6px; cursor: pointer; }
-      .slot-list-item:hover { background: #eef3fa; }
+      .detail-row span:first-child { color: var(--text-muted); flex-shrink: 0; }
+      .slot-list-item { display: flex; justify-content: space-between; align-items: center; padding: 10px 12px; border: 1px solid #e2e8f0; border-radius: 10px; margin-bottom: 8px; cursor: pointer; background: white; }
+      .slot-list-item:hover { background: #f3f8fc; }
+      .voice-panel { border: 1px solid #dbe3ee; border-radius: 14px; background: #f8fafc; padding: 14px; margin-bottom: 14px; }
+      .voice-panel h4 { margin: 0 0 8px; }
+      .voice-meta { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; font-size: 12px; color: var(--text-muted); margin-top: 8px; }
+      .voice-status { display: inline-flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text); }
+      .voice-dot { width: 10px; height: 10px; border-radius: 50%; background: #cbd5e1; box-shadow: 0 0 0 0 rgba(14, 165, 233, 0.4); }
+      .voice-dot.recording { background: #ef4444; animation: pulse-recording 1.3s ease-in-out infinite; }
+      .voice-dot.paused { background: #f59e0b; }
+      @keyframes pulse-recording { 0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.35); } 70% { box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); } 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); } }
+      .voice-meter { height: 8px; background: #e2e8f0; border-radius: 999px; overflow: hidden; margin-top: 10px; }
+      .voice-meter-bar { height: 100%; width: 0%; background: linear-gradient(90deg, #0f4c81, #38bdf8); transition: width 0.08s linear; }
+      .voice-error { color: #b91c1c; margin-top: 8px; font-size: 12px; }
+      .voice-player { margin-top: 10px; display: grid; gap: 8px; }
+      .voice-player audio { width: 100%; }
+      .intake-banner { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; align-items: center; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 14px; padding: 12px 14px; margin-bottom: 14px; }
+      .intake-banner strong { display: block; }
+      .intake-match-list { display: grid; gap: 10px; margin-top: 12px; }
+      .intake-match-card { border: 1px solid #dbe3ee; border-radius: 14px; background: white; padding: 12px; box-shadow: var(--shadow-sm); }
+      .intake-match-card header { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; flex-wrap: wrap; }
+      .intake-match-card h4 { margin: 0; }
+      .intake-match-meta { color: var(--text-muted); font-size: 12px; margin-top: 4px; }
+      .intake-status { margin-top: 10px; font-size: 12px; color: var(--text-muted); }
+      .page-shell { display: grid; gap: 18px; }
+      .page-back { background: var(--surface-soft); color: var(--text); border: 1px solid var(--line); }
+      .page-back:hover { background: #e8eef4; }
+      .detail-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 16px; }
+      .detail-card { background: var(--surface); border: 1px solid rgba(199, 211, 224, 0.8); border-radius: 16px; padding: 16px; box-shadow: var(--shadow-sm); }
+      .detail-card-header { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; margin-bottom: 12px; }
+      .detail-card-header h4 { margin: 0; font-size: 15px; letter-spacing: -0.01em; }
+      .detail-card-header p { margin: 4px 0 0; color: var(--text-muted); font-size: 13px; }
+      .detail-card .detail-row:last-child { border-bottom: none; }
+      .detail-summary { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 4px 0 14px; }
+      .detail-summary .status-pill { margin-right: 6px; }
+      .timeline { display: grid; gap: 10px; }
+      .timeline-item { display: grid; grid-template-columns: 36px 1fr; gap: 12px; align-items: flex-start; }
+      .timeline-marker { width: 36px; height: 36px; border-radius: 12px; background: var(--surface-soft); border: 1px solid var(--line); display: inline-flex; align-items: center; justify-content: center; color: var(--primary); flex-shrink: 0; }
+      .timeline-body { border: 1px solid #e4ebf2; background: linear-gradient(180deg, #ffffff 0%, #f9fbfd 100%); border-radius: 14px; padding: 12px 14px; }
+      .timeline-body strong { display: block; color: var(--text); }
+      .timeline-meta { margin-top: 4px; color: var(--text-muted); font-size: 12px; }
+      .comment-card { border: 1px solid #e4ebf2; border-radius: 14px; background: #fff; padding: 12px 14px; box-shadow: var(--shadow-sm); }
+      .comment-card + .comment-card { margin-top: 10px; }
+      .comment-card header { display: flex; justify-content: space-between; gap: 12px; align-items: center; margin-bottom: 8px; }
+      .comment-card header strong { color: var(--text); }
+      .comment-card header span { color: var(--text-soft); font-size: 12px; }
+      .empty-state { border: 1px dashed #c7d3e0; border-radius: 14px; padding: 16px; text-align: center; color: var(--text-muted); background: #fbfdff; }
+      .skeleton-row { display: grid; gap: 8px; padding: 12px 10px; border-bottom: 1px solid #edf2f7; }
+      .skeleton-row:last-child { border-bottom: none; }
+      .skeleton-line { height: 12px; border-radius: 999px; background: linear-gradient(90deg, #e9eff5 25%, #f4f8fb 37%, #e9eff5 63%); background-size: 400% 100%; animation: skeleton-pulse 1.2s ease-in-out infinite; }
+      .skeleton-line.sm { width: 30%; }
+      .skeleton-line.md { width: 56%; }
+      .skeleton-line.lg { width: 82%; }
+      @keyframes skeleton-pulse { 0% { background-position: 100% 50%; } 100% { background-position: 0 50%; } }
       .hidden { display: none !important; }
+      @media (max-width: 1100px) {
+        .landing-hero-grid,
+        .landing-badges,
+        .summary,
+        .detail-grid,
+        .form-grid { grid-template-columns: 1fr 1fr; }
+      }
+      @media (max-width: 820px) {
+        .container { padding: 16px; }
+        .navbar { padding: 14px 16px; }
+        .workspace-header h2 { font-size: 24px; }
+        .landing-hero { padding: 22px; }
+        .landing-badges,
+        .summary,
+        .detail-grid,
+        .form-grid,
+        .landing-hero-grid { grid-template-columns: 1fr; }
+        .page-header,
+        .workspace-header-top,
+        .actions { align-items: stretch; }
+        .tabs { overflow-x: auto; padding-bottom: 4px; }
+        .table-scroll { max-height: none; }
+        .modal { max-height: 94vh; }
+      }
+
+      /* /cases/:id/record uses the same recorder/API as dashboard capture but
+         makes the controls comfortably tappable on a phone. */
+      .mobile-capture-mode #caseDetailPage { max-width: 680px; margin: 0 auto; }
+      .mobile-capture-mode .detail-grid { grid-template-columns: 1fr; }
+      .mobile-capture-mode #voiceStartBtn,
+      .mobile-capture-mode #voicePauseBtn,
+      .mobile-capture-mode #voiceResumeBtn,
+      .mobile-capture-mode #voiceStopBtn,
+      .mobile-capture-mode #voiceDiscardBtn { min-height: 52px; flex: 1 1 42%; font-size: 16px; }
     </style>
   </head>
   <body>
     <div id="topLoadingBar" class="top-loading-bar"></div>
     <div class="navbar">
       <div class="navbar-brand">
-        <h1>Athena SSO &amp; Appointment Dashboard</h1>
-        <p>Live Athena appointments and patient case creation</p>
+        <h1>Scribel</h1>
       </div>
       <div class="navbar-actions">
         <span id="authStatus" class="status-indicator"><span class="status-dot"></span><span id="authStatusText">Not signed in</span></span>
         <button id="signInBtn" class="primary" type="button" onclick="App.startSsoLogin()">Sign in with SSO</button>
-        <button class="ghost" onclick="App.logout()">Sign out</button>
+        <button id="signOutBtn" class="ghost" onclick="App.logout()">Sign out</button>
       </div>
     </div>
     <div class="info-bar">
       <span id="authMessage"></span>
       <span id="metadataLink">SP metadata: <a href="/auth/saml/metadata">/auth/saml/metadata</a> · IdP metadata: <a href="/idp/metadata">/idp/metadata</a></span>
-      &nbsp;·&nbsp;<span id="integrationMode">Integration mode: fallback sample appointments until ATHENA_BASE_URL is configured.</span>
+      &nbsp;·&nbsp;<span id="integrationMode">Integration mode: fallback sample appointments until ATHENAHEALTH_BASE_URL is configured.</span>
     </div>
     <div class="container">
+      <div id="landingPage" class="landing-page">
+        <section class="landing-hero">
+          <div class="landing-hero-grid">
+            <div>
+              <span class="landing-kicker">Clinical work, clearly captured</span>
+              <h2>Turn every patient encounter into a clear next step.</h2>
+              <p>Scribel brings appointments, case work, and patient intake into one focused workspace. Sign in securely to document the details that keep care moving forward.</p>
+              <div class="landing-hero-actions">
+                <button class="primary" type="button" onclick="App.startSsoLogin()">Sign in with SSO</button>
+                <button class="secondary" type="button" onclick="App.startSsoLogin()">Enter Scribel</button>
+              </div>
+            </div>
+            <div class="landing-panel">
+              <h3>A calmer way to work</h3>
+              <ul>
+                <li>A live view of today’s appointments and case progress.</li>
+                <li>Guided intake with duplicate checks and patient linking.</li>
+                <li>Case notes and voice capture where your team needs them.</li>
+              </ul>
+            </div>
+          </div>
+        </section>
+        <div class="landing-badges">
+          <div class="landing-badge"><strong>See the day</strong><span>Bring visits into focus, filter quickly, and move from appointment to case without losing context.</span></div>
+          <div class="landing-badge"><strong>Shape the story</strong><span>Keep case status, notes, and the details of every encounter in one shared timeline.</span></div>
+          <div class="landing-badge"><strong>Start with care</strong><span>Capture patient details thoughtfully, with safe duplicate review built into the flow.</span></div>
+        </div>
+      </div>
       <div id="dashboard" class="hidden">
+        <div class="workspace-header">
+          <div class="workspace-header-top">
+            <div>
+              <div class="page-breadcrumb"><span>Operations</span><span class="separator">/</span><span>Dashboard</span></div>
+              <span class="page-kicker">Scribel workspace</span>
+              <h2>Your clinical day, in context</h2>
+              <p>Review patient flow, manage each case, and begin intake from one secure, connected workspace.</p>
+            </div>
+            <div class="workspace-metrics">
+              <div class="workspace-metric"><strong id="workspaceMetricAppointments">--</strong><span>Appointments loaded</span></div>
+              <div class="workspace-metric"><strong id="workspaceMetricCases">--</strong><span>Cases loaded</span></div>
+              <div class="workspace-metric"><strong id="workspaceMetricIntake">--</strong><span>Intake ready</span></div>
+            </div>
+          </div>
+        </div>
         <div class="tabs">
           <button id="tabBtnList" class="tab-button active" onclick="App.showTab('list')">List view</button>
           <button id="tabBtnCalendar" class="tab-button" onclick="App.showTab('calendar')">Calendar view</button>
-          <button id="tabBtnCases" class="tab-button" onclick="App.showTab('cases')">Cases</button>
+          <button id="tabBtnCases" class="tab-button admin-only hidden" onclick="App.showTab('cases')">Cases</button>
+          <button id="tabBtnIntake" class="tab-button" onclick="App.showTab('intake')">Intake</button>
+          <button id="tabBtnInbox" class="tab-button admin-only hidden" onclick="App.showTab('inbox')">Inbox</button>
+          <button id="tabBtnSettings" class="tab-button admin-only hidden" onclick="App.showTab('settings')">Practice settings</button>
         </div>
 
         <div id="tab-list">
           <div class="card">
-            <h3>Appointment Summary</h3>
+            <div class="section-heading">
+              <div>
+                <h3>Appointment Summary</h3>
+                <p>Current volume and intake readiness at a glance.</p>
+              </div>
+            </div>
             <div class="summary" id="summary"></div>
           </div>
 
           <div class="card">
-            <h3>Filters</h3>
+            <div class="section-heading">
+              <div>
+                <h3>Filters</h3>
+                <p>Narrow the list to the concern you need to review.</p>
+              </div>
+            </div>
             <div class="actions">
               <input id="dateFilter" type="date" placeholder="Date" />
               <input id="providerFilter" type="text" placeholder="Provider" />
@@ -133,23 +449,29 @@
                 <option value="completed">Completed</option>
               </select>
               <button onclick="App.loadAppointments()">Apply</button>
+              <button id="syncFromAthenaBtn" class="secondary" onclick="App.syncFromAthena()">Sync from Athena</button>
             </div>
           </div>
 
           <div id="appointmentsSection" class="card">
             <div class="actions" style="justify-content: space-between;">
-              <h3 style="margin: 0;">Appointments</h3>
+              <div class="section-heading" style="margin-bottom: 0;">
+                <div>
+                  <h3 style="margin: 0;">Appointments</h3>
+                  <p>Review scheduled activity and launch a case quickly.</p>
+                </div>
+              </div>
               <button class="secondary small" onclick="App.scrollToCases()">Jump to Cases ↓</button>
             </div>
             <div class="table-scroll">
               <table>
                 <thead>
                   <tr>
-                    <th>Patient</th>
+                    <th><button class="table-sort" type="button" onclick="App.sortAppointments('patient')">Patient <span id="appointmentSortPatient" class="sort-indicator">↕</span></button></th>
                     <th>Patient ID</th>
-                    <th>Provider</th>
-                    <th>Date</th>
-                    <th>Status</th>
+                    <th><button class="table-sort" type="button" onclick="App.sortAppointments('provider')">Provider <span id="appointmentSortProvider" class="sort-indicator">↕</span></button></th>
+                    <th><button class="table-sort" type="button" onclick="App.sortAppointments('date')">Date <span id="appointmentSortDate" class="sort-indicator">↕</span></button></th>
+                    <th><button class="table-sort" type="button" onclick="App.sortAppointments('status')">Status <span id="appointmentSortStatus" class="sort-indicator">↕</span></button></th>
                     <th>Reason</th>
                     <th>Case</th>
                   </tr>
@@ -159,12 +481,20 @@
             </div>
           </div>
 
+          <!-- Admin inbox moved to its own tab -->
+
         </div>
 
         <div id="tab-cases" class="hidden">
           <div id="casesSection" class="card">
+            <div id="caseFeedStatus" class="intake-banner hidden"></div>
             <div class="actions" style="justify-content: space-between;">
-              <h3 style="margin: 0;">Cases</h3>
+              <div class="section-heading" style="margin-bottom: 0;">
+                <div>
+                  <h3 style="margin: 0;">Cases</h3>
+                  <p>Track the case lifecycle and keep statuses visible at a glance.</p>
+                </div>
+              </div>
               <button class="secondary small" onclick="App.scrollToAppointments()">↑ Back to Appointments</button>
             </div>
             <div class="actions">
@@ -173,15 +503,67 @@
               </select>
               <button class="secondary" onclick="App.loadCases()">Refresh cases</button>
             </div>
+            <div class="card admin-only hidden">
+              <h3>Create manual Athena-backed case</h3>
+              <p style="margin-top: 0; color: #475569;">Create a new case for a future visit, refill, or follow-up on a planned date and attach it to Athena when the patient/provider/department context is available.</p>
+              <div class="form-grid">
+                <div>
+                  <label for="manualPatientId">Athena patient ID</label>
+                  <input id="manualPatientId" type="text" placeholder="Patient ID" onblur="App.resolveManualPatientName()" />
+                </div>
+                <div>
+                  <label for="manualPatientName">Patient name (resolved from Athena)</label>
+                  <input id="manualPatientName" type="text" placeholder="Patient name" readonly />
+                </div>
+                <div>
+                  <label for="manualDepartmentId">Department</label>
+                  <select id="manualDepartmentId" onchange="App.onManualDepartmentChange()">
+                    <option value="">Select a department</option>
+                  </select>
+                </div>
+                <div>
+                  <label for="manualProviderId">Provider</label>
+                  <select id="manualProviderId">
+                    <option value="">Select a provider</option>
+                  </select>
+                </div>
+                <div>
+                  <label for="manualVisitType">Visit type</label>
+                  <select id="manualVisitType">
+                    <option value="">Select a type</option>
+                    <option value="New Visit">New Visit</option>
+                    <option value="Refill">Refill</option>
+                    <option value="Follow-up">Follow-up</option>
+                    <option value="Consult">Consult</option>
+                    <option value="Other">Other</option>
+                  </select>
+                </div>
+                <div>
+                  <label for="manualAppointmentDate">Planned date</label>
+                  <input id="manualAppointmentDate" type="date" />
+                </div>
+                <div>
+                  <label for="manualAppointmentTime">Planned time</label>
+                  <input id="manualAppointmentTime" type="time" />
+                </div>
+                <div style="grid-column: span 3;">
+                  <label for="manualReason">Reason / subject</label>
+                  <input id="manualReason" type="text" placeholder="Required for Athena patient case" />
+                </div>
+                <div style="grid-column: span 3; display:flex; align-items:flex-end;">
+                  <button class="secondary" onclick="App.createManualCase()">Create follow-up / refill / new visit case</button>
+                </div>
+              </div>
+            </div>
             <table>
               <thead>
                 <tr>
-                  <th>Patient</th>
+                  <th><button class="table-sort" type="button" onclick="App.sortCases('patientName')">Patient <span id="caseSortPatientName" class="sort-indicator">↕</span></button></th>
                   <th>Patient ID</th>
-                  <th>Provider</th>
-                  <th>Appointment Date</th>
-                  <th>Status</th>
-                  <th>Created</th>
+                  <th><button class="table-sort" type="button" onclick="App.sortCases('providerName')">Provider <span id="caseSortProviderName" class="sort-indicator">↕</span></button></th>
+                  <th><button class="table-sort" type="button" onclick="App.sortCases('appointmentDate')">Appointment Date <span id="caseSortAppointmentDate" class="sort-indicator">↕</span></button></th>
+                  <th><button class="table-sort" type="button" onclick="App.sortCases('status')">Status <span id="caseSortStatus" class="sort-indicator">↕</span></button></th>
+                  <th><button class="table-sort" type="button" onclick="App.sortCases('createdAt')">Created <span id="caseSortCreatedAt" class="sort-indicator">↕</span></button></th>
                   <th></th>
                 </tr>
               </thead>
@@ -189,6 +571,127 @@
             </table>
           </div>
         </div>
+
+        <div id="tab-inbox" class="hidden">
+          <div id="adminInboxSection" class="card admin-only hidden">
+            <div class="actions" style="justify-content: space-between;">
+              <div class="section-heading" style="margin-bottom: 0;">
+                <div>
+                  <h3 style="margin: 0;">Admin inbox</h3>
+                  <p>Recent admin actions and case activity in one place.</p>
+                </div>
+              </div>
+              <button class="secondary small" onclick="App.loadAdminInbox()">Refresh</button>
+            </div>
+            <div id="adminInboxBody" class="timeline"></div>
+          </div>
+        </div>
+
+        <div id="tab-settings" class="hidden">
+          <div class="card admin-only hidden">
+            <div class="section-heading"><div><h3>Practice members</h3><p>Roles are scoped to this practice. Granting access here does not affect another practice.</p></div></div>
+            <div id="practiceMembersBody" class="timeline"></div>
+          </div>
+        </div>
+        </div>
+
+        <div id="tab-intake" class="hidden">
+          <div class="card">
+            <div class="page-header">
+              <div>
+                <h3 style="margin: 0;">New patient intake</h3>
+                <p class="page-subtitle">Create a new Athena patient or link an existing one after duplicate review.</p>
+              </div>
+              <div class="actions">
+                <button class="secondary small" type="button" onclick="App.clearPatientIntake()">Clear draft</button>
+              </div>
+            </div>
+            <div id="patientIntakeBanner" class="intake-banner hidden"></div>
+            <div class="form-grid">
+              <div>
+                <label for="intakeFirstName">Legal first name</label>
+                <input id="intakeFirstName" type="text" placeholder="First name" />
+              </div>
+              <div>
+                <label for="intakeLastName">Legal last name</label>
+                <input id="intakeLastName" type="text" placeholder="Last name" />
+              </div>
+              <div>
+                <label for="intakeDob">Date of birth</label>
+                <input id="intakeDob" type="date" />
+              </div>
+              <div>
+                <label for="intakeSex">Sex / gender</label>
+                <select id="intakeSex">
+                  <option value="">Select</option>
+                  <option value="F">Female</option>
+                  <option value="M">Male</option>
+                  <option value="X">Non-binary / X</option>
+                  <option value="U">Unknown</option>
+                </select>
+              </div>
+              <div>
+                <label for="intakePhone">Primary phone</label>
+                <input id="intakePhone" type="tel" placeholder="(555) 555-5555" />
+              </div>
+              <div>
+                <label for="intakeEmail">Email</label>
+                <input id="intakeEmail" type="email" placeholder="name@example.com" />
+              </div>
+              <div style="grid-column: span 2;">
+                <label for="intakeAddress1">Address line 1</label>
+                <input id="intakeAddress1" type="text" placeholder="Street address" />
+              </div>
+              <div>
+                <label for="intakeAddress2">Address line 2</label>
+                <input id="intakeAddress2" type="text" placeholder="Apartment, suite, etc." />
+              </div>
+              <div>
+                <label for="intakeCity">City</label>
+                <input id="intakeCity" type="text" placeholder="City" />
+              </div>
+              <div>
+                <label for="intakeState">State</label>
+                <input id="intakeState" type="text" placeholder="State" maxlength="2" />
+              </div>
+              <div>
+                <label for="intakeZip">ZIP</label>
+                <input id="intakeZip" type="text" placeholder="ZIP" />
+              </div>
+              <div>
+                <label for="intakePayerName">Insurance payer</label>
+                <input id="intakePayerName" type="text" placeholder="Payer / plan" />
+              </div>
+              <div>
+                <label for="intakeMemberId">Member ID</label>
+                <input id="intakeMemberId" type="text" placeholder="Optional" />
+              </div>
+              <div>
+                <label for="intakeGroupNumber">Group number</label>
+                <input id="intakeGroupNumber" type="text" placeholder="Optional" />
+              </div>
+              <div>
+                <label for="intakeEmergencyName">Emergency contact name</label>
+                <input id="intakeEmergencyName" type="text" placeholder="Optional" />
+              </div>
+              <div>
+                <label for="intakeEmergencyPhone">Emergency contact phone</label>
+                <input id="intakeEmergencyPhone" type="tel" placeholder="Optional" />
+              </div>
+              <div style="grid-column: span 3;">
+                <label for="intakeNotes">Intake notes</label>
+                <textarea id="intakeNotes" rows="3" style="width:100%;"></textarea>
+              </div>
+            </div>
+            <div class="actions" style="margin-top: 12px;">
+              <button class="secondary" type="button" onclick="App.searchIntakeDuplicates()">Check duplicates</button>
+              <button type="button" onclick="App.submitPatientIntake()">Create in Athena</button>
+              <button class="secondary" type="button" onclick="App.createIntakeAnyway()">Create anyway</button>
+              <button class="secondary" type="button" onclick="App.linkSelectedPatientToContext()">Link selected patient</button>
+            </div>
+            <div id="patientIntakeStatus" class="intake-status"></div>
+            <div id="patientIntakeMatches" class="intake-match-list"></div>
+          </div>
         </div>
 
         <div id="tab-calendar" class="hidden">
@@ -229,6 +732,24 @@
       </div>
     </div>
 
+      <div id="caseDetailPage" class="hidden page-shell">
+        <div class="card">
+          <div class="page-header">
+            <div>
+              <div class="page-breadcrumb"><span>Operations</span><span class="separator">/</span><span>Case detail</span></div>
+              <span class="page-kicker">Case detail</span>
+              <h2 id="caseDetailPageTitle">Case Detail</h2>
+              <p id="caseDetailPageSubtitle" class="page-subtitle">Loading case details…</p>
+            </div>
+            <div class="actions">
+              <button class="secondary" type="button" onclick="App.openPatientIntakeForCurrentCase()">New patient intake</button>
+              <button class="page-back" type="button" onclick="App.backToDashboard()">Back to dashboard</button>
+            </div>
+          </div>
+        </div>
+        <div id="caseDetailPageBody" class="card"></div>
+      </div>
+
     <div id="caseModalOverlay" class="modal-overlay hidden" onclick="App.closeCaseModalIfBackdrop(event)">
       <div class="modal" onclick="event.stopPropagation()">
         <div class="actions" style="justify-content: space-between; margin-bottom: 8px;">
@@ -252,6 +773,18 @@
     <script>
     (function () {
       'use strict';
+      const CASE_STATUS_TONES = {
+        'New': 'neutral',
+        'Voice Pending': 'warning',
+        'Voice Captured': 'info',
+        'Transcript Cleaning': 'purple',
+        'Prompt Processing': 'purple',
+        'Review Required': 'danger',
+        'Ready for Athena': 'success',
+        'Sent to Athena': 'success',
+        'Failed': 'danger',
+      };
+
       const CASE_STATUS_COLORS = {
         'New': '#e2e8f0',
         'Voice Pending': '#fef3c7',
@@ -264,6 +797,13 @@
         'Failed': '#fecaca',
       };
 
+      const APPOINTMENT_STATUS_TONES = {
+        scheduled: 'info',
+        'checked-in': 'warning',
+        completed: 'success',
+        cancelled: 'danger',
+      };
+
       const APPOINTMENT_STATUS_COLORS = {
         scheduled: '#dbeafe',
         'checked-in': '#fef3c7',
@@ -271,9 +811,15 @@
         cancelled: '#fecaca',
       };
 
+      const DISPLAY_LIMITS = {
+        tableSkeletonRows: 4,
+      };
+
       let lastAppointments = [];
       let lastCases = [];
       let caseStatuses = [];
+      let appointmentSort = { key: 'date', direction: 'asc' };
+      let caseSort = { key: 'createdAt', direction: 'desc' };
       let openCaseId = null;
       let calendarAppointments = [];
       let calendarLoaded = false;
@@ -283,11 +829,95 @@
       let calendarDepartmentId = '';
       let departmentOptions = [];
       let calendarDebounceTimer = null;
+      let isAuthenticated = false;
+      let currentCaseId = null;
+      let audioRecorder = null;
+      let audioStream = null;
+      let audioChunks = [];
+      let audioTimer = null;
+      let audioMeterFrame = null;
+      let audioStartAt = null;
+      let audioPendingUpload = null;
+      let audioContext = null;
+      let audioAnalyser = null;
+      let audioSourceNode = null;
+      let audioLevelData = null;
+      let beforeUnloadHandler = null;
+      let voiceCaptureSource = 'dashboard';
+      let transcriptReviewMode = false;
+      let intakeDraft = {};
+      let intakeMatches = [];
+      let intakeSelectedAthenaPatientId = null;
+      let intakeForceCreate = false;
+      let intakeContext = { caseId: null, appointmentId: null };
+      const MAX_RECORDING_SECONDS = 10 * 60;
+      const MAX_AUDIO_BYTES = 50 * 1024 * 1024;
       const CALENDAR_MAX_VISIBLE_PER_SLOT = 2;
 
-      function statusPill(status, colorMap) {
-        const background = (colorMap && colorMap[status]) || '#e2e8f0';
-        return `<span class="pill" style="background:${background}">${status}</span>`;
+      function statusPill(status, toneMap) {
+        const tone = (toneMap && toneMap[status]) || 'neutral';
+        return `<span class="status-pill status-pill--${tone}">${status}</span>`;
+      }
+
+      function iconSvg(name) {
+        const icons = {
+          activity: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12h4l3-8 4 16 3-8h4"></path></svg>',
+          note: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4h16v12H8l-4 4V4z"></path></svg>',
+          clock: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v5l3 3"></path></svg>',
+          patient: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 21a8 8 0 0 0-16 0"></path><circle cx="12" cy="8" r="4"></circle></svg>',
+        };
+        return icons[name] || icons.activity;
+      }
+
+      function compareMaybeDates(a, b) {
+        const aTime = Date.parse(a);
+        const bTime = Date.parse(b);
+        const aValid = !Number.isNaN(aTime);
+        const bValid = !Number.isNaN(bTime);
+        if (aValid && bValid) return aTime - bTime;
+        return String(a || '').localeCompare(String(b || ''), undefined, { sensitivity: 'base' });
+      }
+
+      function getSortIndicatorState(activeConfig, key) {
+        if (activeConfig.key !== key) return '↕';
+        return activeConfig.direction === 'asc' ? '↑' : '↓';
+      }
+
+      function updateSortIndicators(prefix, sortConfig, keys) {
+        keys.forEach((key) => {
+          const indicator = document.getElementById(`${prefix}${key}`);
+          if (!indicator) return;
+          indicator.textContent = getSortIndicatorState(sortConfig, key);
+          indicator.parentElement?.setAttribute('aria-sort', sortConfig.key === key ? (sortConfig.direction === 'asc' ? 'ascending' : 'descending') : 'none');
+        });
+      }
+
+      function renderTableSkeleton(bodyId, columns = 6) {
+        const rows = Array.from({ length: DISPLAY_LIMITS.tableSkeletonRows }, (_, index) => {
+          const cellCount = columns;
+          const cells = Array.from({ length: cellCount }, (_, cellIndex) => {
+            const widthClass = cellIndex === 0 ? 'lg' : cellIndex % 2 === 0 ? 'md' : 'sm';
+            return `<td><div class="skeleton-line ${widthClass}"></div></td>`;
+          }).join('');
+          return `<tr class="skeleton-row">${cells}</tr>`;
+        }).join('');
+        document.getElementById(bodyId).innerHTML = rows;
+      }
+
+      function renderEmptyState(bodyId, message, colspan) {
+        document.getElementById(bodyId).innerHTML = `<tr><td colspan="${colspan}"><div class="empty-state">${message}</div></td></tr>`;
+      }
+
+      function applySort(items, sortConfig, valueGetter) {
+        const sorted = [...items].sort((left, right) => {
+          const leftValue = valueGetter(left, sortConfig.key);
+          const rightValue = valueGetter(right, sortConfig.key);
+          return compareMaybeDates(leftValue, rightValue);
+        });
+        if (sortConfig.direction === 'desc') {
+          sorted.reverse();
+        }
+        return sorted;
       }
 
       function setAuthStatus(text, state) {
@@ -301,7 +931,33 @@
         signInButton.textContent = enabled ? 'Sign in with SSO' : 'Signed in';
       }
 
+      function setProtectedUiEnabled(enabled) {
+        document.getElementById('landingPage').classList.toggle('hidden', enabled);
+        document.getElementById('dashboard').classList.toggle('hidden', !enabled);
+        document.getElementById('caseDetailPage').classList.toggle('hidden', !enabled);
+
+        const intakeButton = document.getElementById('newPatientIntakeBtn');
+        const signOutButton = document.getElementById('signOutBtn');
+        const metadataLink = document.getElementById('metadataLink');
+        const integrationMode = document.getElementById('integrationMode');
+
+        if (intakeButton) intakeButton.classList.toggle('hidden', !enabled);
+        if (signOutButton) signOutButton.classList.toggle('hidden', !enabled);
+        if (metadataLink) metadataLink.classList.toggle('hidden', !enabled);
+        if (integrationMode) integrationMode.classList.toggle('hidden', !enabled);
+      }
+
+      function setSyncEnabled(enabled) {
+        const syncButton = document.getElementById('syncFromAthenaBtn');
+        if (syncButton) {
+          syncButton.disabled = !enabled;
+        }
+      }
+
       let pendingRequests = 0;
+      let currentUser = null;
+      let isAdmin = false;
+
       function beginLoading() {
         pendingRequests += 1;
         document.getElementById('topLoadingBar').classList.add('active');
@@ -313,29 +969,710 @@
         }
       }
 
+      function updateAdminUi() {
+        const adminElements = document.querySelectorAll('.admin-only');
+        adminElements.forEach((el) => {
+          el.classList.toggle('hidden', !isAdmin);
+        });
+      }
+
+      function getCaseRouteId() {
+        const match = window.location.pathname.match(/^\/cases\/([^/?#]+)$/);
+        return match ? decodeURIComponent(match[1]) : null;
+      }
+
+      function getVoiceCaptureRouteId() {
+        const match = window.location.pathname.match(/^\/cases\/([^/?#]+)\/record$/);
+        return match ? decodeURIComponent(match[1]) : null;
+      }
+
+      function getTranscriptRouteId() {
+        const match = window.location.pathname.match(/^\/cases\/([^/?#]+)\/transcript$/);
+        return match ? decodeURIComponent(match[1]) : null;
+      }
+
+      function getIntakeRouteContext() {
+        if (!/^\/patients\/new$/.test(window.location.pathname)) {
+          return { caseId: null, appointmentId: null };
+        }
+        const params = new URLSearchParams(window.location.search);
+        return {
+          caseId: params.get('caseId'),
+          appointmentId: params.get('appointmentId'),
+        };
+      }
+
+      function showDashboardPage() {
+        setProtectedUiEnabled(true);
+        document.getElementById('dashboard').classList.remove('hidden');
+        document.getElementById('caseDetailPage').classList.add('hidden');
+      }
+
+      function showCaseDetailPage() {
+        setProtectedUiEnabled(true);
+        document.getElementById('dashboard').classList.add('hidden');
+        document.getElementById('caseDetailPage').classList.remove('hidden');
+      }
+
+      async function showRoute() {
+        const transcriptCaseId = getTranscriptRouteId();
+        if (transcriptCaseId) {
+          await viewCase(transcriptCaseId, true, { transcriptReview: true });
+          return;
+        }
+        const mobileVoiceCaseId = getVoiceCaptureRouteId();
+        if (mobileVoiceCaseId) {
+          await viewCase(mobileVoiceCaseId, true, { source: 'mobile' });
+          return;
+        }
+        const caseId = getCaseRouteId();
+        if (caseId) {
+          await viewCase(caseId, true);
+          return;
+        }
+        const intakeRouteContext = getIntakeRouteContext();
+        if (intakeRouteContext.caseId || intakeRouteContext.appointmentId) {
+          openPatientIntake(intakeRouteContext, true);
+          return;
+        }
+        showDashboardPage();
+      }
+
+      function buildIntakeDraft() {
+        return {
+          firstName: document.getElementById('intakeFirstName')?.value.trim() || '',
+          lastName: document.getElementById('intakeLastName')?.value.trim() || '',
+          dob: document.getElementById('intakeDob')?.value || '',
+          sex: document.getElementById('intakeSex')?.value || '',
+          phone: document.getElementById('intakePhone')?.value.trim() || '',
+          email: document.getElementById('intakeEmail')?.value.trim() || '',
+          address1: document.getElementById('intakeAddress1')?.value.trim() || '',
+          address2: document.getElementById('intakeAddress2')?.value.trim() || '',
+          city: document.getElementById('intakeCity')?.value.trim() || '',
+          state: document.getElementById('intakeState')?.value.trim() || '',
+          zip: document.getElementById('intakeZip')?.value.trim() || '',
+          payerName: document.getElementById('intakePayerName')?.value.trim() || '',
+          memberId: document.getElementById('intakeMemberId')?.value.trim() || '',
+          groupNumber: document.getElementById('intakeGroupNumber')?.value.trim() || '',
+          emergencyContactName: document.getElementById('intakeEmergencyName')?.value.trim() || '',
+          emergencyContactPhone: document.getElementById('intakeEmergencyPhone')?.value.trim() || '',
+          notes: document.getElementById('intakeNotes')?.value.trim() || '',
+        };
+      }
+
+      function setIntakeDraftValue(name, value) {
+        intakeDraft[name] = value;
+      }
+
+      function renderIntakeContextBanner() {
+        const banner = document.getElementById('patientIntakeBanner');
+        if (!banner) return;
+        const contextBits = [];
+        if (intakeContext.caseId) contextBits.push(`Case ${intakeContext.caseId}`);
+        if (intakeContext.appointmentId) contextBits.push(`Appointment ${intakeContext.appointmentId}`);
+        if (!contextBits.length) {
+          banner.classList.add('hidden');
+          banner.innerHTML = '';
+          return;
+        }
+        banner.classList.remove('hidden');
+        banner.innerHTML = `<div><strong>Linked intake context</strong><span>${contextBits.join(' · ')}</span></div><button class="secondary small" type="button" onclick="App.clearPatientIntakeContext()">Remove link</button>`;
+      }
+
+      function renderIntakeMatches(matches = intakeMatches) {
+        const container = document.getElementById('patientIntakeMatches');
+        if (!container) return;
+
+        if (!matches.length) {
+          container.innerHTML = '<div class="history-item">No duplicate matches found yet.</div>';
+          return;
+        }
+
+        container.innerHTML = matches.map((match) => {
+          const isSelected = String(intakeSelectedAthenaPatientId) === String(match.id);
+          return `
+            <div class="intake-match-card">
+              <header>
+                <div>
+                  <h4>${match.fullName}</h4>
+                  <div class="intake-match-meta">Athena patient ID: ${match.id} · DOB: ${match.dob || '—'} · Phone: ${match.phone || '—'} · Email: ${match.email || '—'}</div>
+                </div>
+                <div class="actions">
+                  <button class="secondary small" type="button" onclick="App.selectExistingAthenaPatient('${match.id}')">${isSelected ? 'Selected' : 'This is the same patient'}</button>
+                </div>
+              </header>
+              <div class="intake-status">${match.address1 || ''}${match.city ? ` · ${match.city}` : ''}${match.state ? `, ${match.state}` : ''}</div>
+            </div>
+          `;
+        }).join('');
+      }
+
+      function updateIntakeStatus(message, state = '') {
+        const status = document.getElementById('patientIntakeStatus');
+        if (!status) return;
+        status.textContent = message || '';
+        status.style.color = state === 'error' ? '#b91c1c' : '#475569';
+      }
+
+      function clearPatientIntakeContext() {
+        intakeContext = { caseId: null, appointmentId: null };
+        renderIntakeContextBanner();
+      }
+
+      function clearPatientIntake() {
+        intakeDraft = {};
+        intakeMatches = [];
+        intakeSelectedAthenaPatientId = null;
+        intakeForceCreate = false;
+        ['intakeFirstName', 'intakeLastName', 'intakeDob', 'intakeSex', 'intakePhone', 'intakeEmail', 'intakeAddress1', 'intakeAddress2', 'intakeCity', 'intakeState', 'intakeZip', 'intakePayerName', 'intakeMemberId', 'intakeGroupNumber', 'intakeEmergencyName', 'intakeEmergencyPhone', 'intakeNotes'].forEach((id) => {
+          const el = document.getElementById(id);
+          if (el) el.value = '';
+        });
+        updateIntakeStatus('Draft cleared.');
+        renderIntakeMatches([]);
+        renderIntakeContextBanner();
+      }
+
+      function bindPatientIntakeDraftListeners() {
+        const fieldIds = ['intakeFirstName', 'intakeLastName', 'intakeDob', 'intakeSex', 'intakePhone', 'intakeEmail', 'intakeAddress1', 'intakeAddress2', 'intakeCity', 'intakeState', 'intakeZip', 'intakePayerName', 'intakeMemberId', 'intakeGroupNumber', 'intakeEmergencyName', 'intakeEmergencyPhone', 'intakeNotes'];
+        fieldIds.forEach((id) => {
+          const element = document.getElementById(id);
+          if (!element || element.dataset.bound === 'true') return;
+          element.dataset.bound = 'true';
+          const sync = () => {
+            intakeDraft = buildIntakeDraft();
+          };
+          element.addEventListener('input', sync);
+          element.addEventListener('change', sync);
+        });
+      }
+
+      function openPatientIntake(context = {}, replaceHistory = false) {
+        if (!isAuthenticated) {
+          alert('Please sign in first.');
+          return;
+        }
+        intakeContext = {
+          caseId: context.caseId || null,
+          appointmentId: context.appointmentId || null,
+        };
+        intakeSelectedAthenaPatientId = null;
+        intakeForceCreate = false;
+        showTab('intake');
+        renderIntakeContextBanner();
+        renderIntakeMatches();
+        updateIntakeStatus('Complete the form and check for duplicates before creating the patient.');
+        const query = new URLSearchParams();
+        if (intakeContext.caseId) query.set('caseId', intakeContext.caseId);
+        if (intakeContext.appointmentId) query.set('appointmentId', intakeContext.appointmentId);
+        const path = `/patients/new${query.toString() ? `?${query.toString()}` : ''}`;
+        if (replaceHistory) {
+          window.history.replaceState({ intakeContext }, '', path);
+        } else {
+          window.history.pushState({ intakeContext }, '', path);
+        }
+      }
+
+      function openPatientIntakeForCurrentCase() {
+        if (!currentCaseId) {
+          openPatientIntake();
+          return;
+        }
+        openPatientIntake({ caseId: currentCaseId });
+      }
+
+      function openPatientIntakeForAppointment(appointmentId) {
+        openPatientIntake({ appointmentId });
+      }
+
+      function selectExistingAthenaPatient(patientId) {
+        intakeSelectedAthenaPatientId = patientId;
+        intakeForceCreate = false;
+        updateIntakeStatus(`Selected existing Athena patient ${patientId}. Click "Link selected patient" to attach it.`);
+        renderIntakeMatches();
+      }
+
+      function formatDuration(totalSeconds) {
+        const seconds = Math.max(0, Math.floor(totalSeconds || 0));
+        const minutes = Math.floor(seconds / 60);
+        const remainder = seconds % 60;
+        return `${String(minutes).padStart(2, '0')}:${String(remainder).padStart(2, '0')}`;
+      }
+
+      function pickSupportedAudioMimeType() {
+        if (!window.MediaRecorder || typeof MediaRecorder.isTypeSupported !== 'function') {
+          return '';
+        }
+        const candidates = [
+          'audio/webm;codecs=opus',
+          'audio/webm',
+          'audio/mp4',
+          'audio/wav',
+        ];
+        return candidates.find((candidate) => MediaRecorder.isTypeSupported(candidate)) || '';
+      }
+
+      function audioExtensionForMimeType(mimeType) {
+        const type = String(mimeType || '').toLowerCase();
+        if (type.includes('wav')) return 'wav';
+        if (type.includes('ogg')) return 'ogg';
+        if (type.includes('mp4') || type.includes('m4a')) return 'm4a';
+        return 'webm';
+      }
+
+      function setVoiceStatus(message, state = '') {
+        const text = document.getElementById('voiceStatusText');
+        const error = document.getElementById('voiceError');
+        if (text) text.textContent = message;
+        if (error) error.textContent = state === 'error' ? message : '';
+        const dot = document.getElementById('voiceStatusDot');
+        if (dot) {
+          dot.className = `voice-dot ${state || ''}`.trim();
+        }
+      }
+
+      function setVoiceUploadProgress(percent = null) {
+        const wrapper = document.getElementById('voiceUploadProgress');
+        const bar = document.getElementById('voiceUploadProgressBar');
+        const label = document.getElementById('voiceUploadProgressLabel');
+        if (!wrapper || !bar || !label) return;
+        if (percent === null) { wrapper.classList.add('hidden'); return; }
+        const safePercent = Math.max(0, Math.min(100, Math.round(percent)));
+        wrapper.classList.remove('hidden'); bar.style.width = `${safePercent}%`; label.textContent = `Uploading ${safePercent}%`;
+      }
+
+      function setVoiceButtons({ start = false, pause = false, resume = false, stop = false, discard = false } = {}) {
+        const startBtn = document.getElementById('voiceStartBtn');
+        const pauseBtn = document.getElementById('voicePauseBtn');
+        const resumeBtn = document.getElementById('voiceResumeBtn');
+        const stopBtn = document.getElementById('voiceStopBtn');
+        const discardBtn = document.getElementById('voiceDiscardBtn');
+        if (startBtn) startBtn.disabled = !start;
+        if (pauseBtn) pauseBtn.disabled = !pause;
+        if (resumeBtn) resumeBtn.disabled = !resume;
+        if (stopBtn) stopBtn.disabled = !stop;
+        if (discardBtn) discardBtn.disabled = !discard;
+      }
+
+      function clearVoiceRecorderState() {
+        if (audioTimer) {
+          clearInterval(audioTimer);
+          audioTimer = null;
+        }
+        if (audioMeterFrame) {
+          cancelAnimationFrame(audioMeterFrame);
+          audioMeterFrame = null;
+        }
+        if (audioSourceNode) {
+          try { audioSourceNode.disconnect(); } catch (error) {}
+          audioSourceNode = null;
+        }
+        if (audioAnalyser) {
+          try { audioAnalyser.disconnect(); } catch (error) {}
+          audioAnalyser = null;
+        }
+        if (audioContext) {
+          try { audioContext.close(); } catch (error) {}
+          audioContext = null;
+        }
+        if (audioStream) {
+          audioStream.getTracks().forEach((track) => track.stop());
+          audioStream = null;
+        }
+        audioRecorder = null;
+        audioChunks = [];
+        audioStartAt = null;
+        audioLevelData = null;
+        if (beforeUnloadHandler) {
+          window.removeEventListener('beforeunload', beforeUnloadHandler);
+          beforeUnloadHandler = null;
+        }
+      }
+
+      function updateVoiceTimer() {
+        const timer = document.getElementById('voiceTimer');
+        if (!timer || !audioStartAt) return;
+        timer.textContent = formatDuration((Date.now() - audioStartAt) / 1000);
+      }
+
+      function updateVoiceMeter() {
+        const meter = document.getElementById('voiceMeterBar');
+        if (!meter || !audioAnalyser || !audioLevelData) return;
+        audioAnalyser.getByteFrequencyData(audioLevelData);
+        const total = audioLevelData.reduce((sum, value) => sum + value, 0);
+        const level = Math.min(100, Math.max(6, Math.round((total / audioLevelData.length) * 1.5)));
+        meter.style.width = `${level}%`;
+        audioMeterFrame = requestAnimationFrame(updateVoiceMeter);
+      }
+
+      function wireAudioMeter(stream) {
+        const AudioContextCtor = window.AudioContext || window.webkitAudioContext;
+        if (!AudioContextCtor) return;
+        try {
+          audioContext = new AudioContextCtor();
+          audioAnalyser = audioContext.createAnalyser();
+          audioAnalyser.fftSize = 256;
+          audioSourceNode = audioContext.createMediaStreamSource(stream);
+          audioSourceNode.connect(audioAnalyser);
+          audioLevelData = new Uint8Array(audioAnalyser.frequencyBinCount);
+          updateVoiceMeter();
+        } catch (error) {
+          // Audio meter is best-effort only.
+        }
+      }
+
+      function updateVoiceRecorderUi(recordingState = 'idle') {
+        const indicator = document.getElementById('voiceIndicator');
+        if (indicator) {
+          indicator.textContent = recordingState === 'recording' ? 'Recording' : recordingState === 'paused' ? 'Paused' : 'Ready';
+        }
+        if (recordingState === 'recording') {
+          setVoiceButtons({ start: false, pause: true, resume: false, stop: true, discard: false });
+        } else if (recordingState === 'paused') {
+          setVoiceButtons({ start: false, pause: false, resume: true, stop: true, discard: false });
+        } else {
+          setVoiceButtons({ start: true, pause: false, resume: false, stop: false, discard: !!audioPendingUpload });
+        }
+      }
+
+      async function startVoiceCapture() {
+        const caseId = currentCaseId || getCaseRouteId();
+        if (!caseId) {
+          alert('Open a case before starting voice capture.');
+          return;
+        }
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+          setVoiceStatus('This browser does not support microphone capture.', 'error');
+          return;
+        }
+
+        if (audioPendingUpload) {
+          const discardPending = window.confirm('A recording is waiting to be uploaded. Discard it and record again?');
+          if (!discardPending) return;
+          audioPendingUpload = null;
+        }
+
+        try {
+          setVoiceStatus('Requesting microphone access…');
+          const mimeType = pickSupportedAudioMimeType();
+          audioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+          audioRecorder = mimeType ? new MediaRecorder(audioStream, { mimeType }) : new MediaRecorder(audioStream);
+          audioChunks = [];
+          audioRecorder.ondataavailable = (event) => {
+            if (event.data && event.data.size > 0) {
+              audioChunks.push(event.data);
+            }
+          };
+          audioRecorder.onerror = (event) => {
+            setVoiceStatus(event.error?.message || 'Recording failed.', 'error');
+            clearVoiceRecorderState();
+            updateVoiceRecorderUi('idle');
+          };
+          audioRecorder.onstop = async () => {
+            const blob = new Blob(audioChunks, { type: audioRecorder?.mimeType || mimeType || 'audio/webm' });
+            audioPendingUpload = {
+              blob,
+              mimeType: blob.type || mimeType || 'audio/webm',
+              durationMs: audioStartAt ? Date.now() - audioStartAt : null,
+              recordedAt: new Date(audioStartAt || Date.now()).toISOString(),
+            };
+            clearVoiceRecorderState();
+            updateVoiceRecorderUi('idle');
+            await uploadVoiceRecording(caseId);
+          };
+          audioRecorder.start();
+          audioStartAt = Date.now();
+          const timer = document.getElementById('voiceTimer');
+          if (timer) timer.textContent = '00:00';
+          setVoiceStatus('Recording in progress…');
+          updateVoiceRecorderUi('recording');
+          wireAudioMeter(audioStream);
+          audioTimer = setInterval(() => {
+            updateVoiceTimer();
+            if (audioStartAt && (Date.now() - audioStartAt) >= MAX_RECORDING_SECONDS * 1000) {
+              stopVoiceCapture();
+              setVoiceStatus(`Recording stopped at ${MAX_RECORDING_SECONDS} minutes to protect performance.`);
+            }
+          }, 1000);
+          beforeUnloadHandler = (event) => {
+            event.preventDefault();
+            event.returnValue = '';
+          };
+          window.addEventListener('beforeunload', beforeUnloadHandler);
+        } catch (error) {
+          clearVoiceRecorderState();
+          updateVoiceRecorderUi('idle');
+          if (error && (error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError')) {
+            setVoiceStatus('Microphone access was denied. Allow microphone permission and try again.', 'error');
+          } else if (error && error.name === 'NotFoundError') {
+            setVoiceStatus('No microphone was found on this device.', 'error');
+          } else {
+            setVoiceStatus(error.message || 'Unable to start microphone capture.', 'error');
+          }
+        }
+      }
+
+      function pauseVoiceCapture() {
+        if (!audioRecorder || audioRecorder.state !== 'recording') return;
+        audioRecorder.pause();
+        setVoiceStatus('Recording paused.');
+        updateVoiceRecorderUi('paused');
+      }
+
+      function resumeVoiceCapture() {
+        if (!audioRecorder || audioRecorder.state !== 'paused') return;
+        audioRecorder.resume();
+        setVoiceStatus('Recording resumed.');
+        updateVoiceRecorderUi('recording');
+      }
+
+      function stopVoiceCapture() {
+        if (!audioRecorder || (audioRecorder.state !== 'recording' && audioRecorder.state !== 'paused')) return;
+        setVoiceStatus('Finalizing recording…');
+        audioRecorder.stop();
+      }
+
+      async function blobToBase64(blob) {
+        const buffer = await blob.arrayBuffer();
+        const bytes = new Uint8Array(buffer);
+        let binary = '';
+        const chunkSize = 0x8000;
+        for (let index = 0; index < bytes.length; index += chunkSize) {
+          binary += String.fromCharCode(...bytes.subarray(index, index + chunkSize));
+        }
+        return btoa(binary);
+      }
+
+      function audioMimeType(file) {
+        const name = String(file.name || '').toLowerCase();
+        if (name.endsWith('.mp3')) return 'audio/mpeg';
+        if (name.endsWith('.wav')) return 'audio/wav';
+        if (name.endsWith('.ogg')) return 'audio/ogg';
+        if (name.endsWith('.m4a')) return 'audio/m4a';
+        if (name.endsWith('.mp4')) return 'audio/mp4';
+        return file.type || 'application/octet-stream';
+      }
+
+      async function getAudioDurationMs(file) {
+        return new Promise((resolve) => {
+          const url = URL.createObjectURL(file);
+          const audio = document.createElement('audio');
+          audio.preload = 'metadata';
+          audio.onloadedmetadata = () => { URL.revokeObjectURL(url); resolve(Number.isFinite(audio.duration) ? Math.round(audio.duration * 1000) : null); };
+          audio.onerror = () => { URL.revokeObjectURL(url); resolve(null); };
+          audio.src = url;
+        });
+      }
+
+      async function selectAudioFile(input) {
+        const file = input?.files?.[0];
+        if (!file) return;
+        if (file.size > MAX_AUDIO_BYTES) {
+          setVoiceStatus(`Audio file is too large. The upload limit is ${Math.round(MAX_AUDIO_BYTES / (1024 * 1024))}MB.`, 'error');
+          input.value = '';
+          return;
+        }
+        const durationMs = await getAudioDurationMs(file);
+        audioPendingUpload = { blob: file, mimeType: audioMimeType(file), durationMs, recordedAt: new Date(file.lastModified || Date.now()).toISOString(), fileName: file.name };
+        setVoiceStatus(`Ready to upload ${file.name}.`);
+        await uploadVoiceRecording();
+        input.value = '';
+      }
+
+      function uploadVoicePayload(url, body, onProgress) {
+        return new Promise((resolve, reject) => {
+          const xhr = new XMLHttpRequest();
+          xhr.open('POST', url); xhr.withCredentials = true; xhr.setRequestHeader('Content-Type', 'application/json');
+          xhr.upload.onprogress = (event) => { if (event.lengthComputable) onProgress((event.loaded / event.total) * 100); };
+          xhr.onerror = () => reject(new Error('Network error while uploading audio.'));
+          xhr.onload = () => {
+            let payload = {}; try { payload = JSON.parse(xhr.responseText || '{}'); } catch (_) {}
+            if (xhr.status >= 200 && xhr.status < 300) resolve(payload); else reject(new Error(payload.message || 'Unable to upload audio.'));
+          };
+          xhr.send(JSON.stringify(body));
+        });
+      }
+
+      async function uploadVoiceRecording(caseId = currentCaseId || getCaseRouteId() || getVoiceCaptureRouteId()) {
+        if (!audioPendingUpload || !audioPendingUpload.blob) {
+          return;
+        }
+        if (!caseId) {
+          setVoiceStatus('Open a case before uploading audio.', 'error');
+          return;
+        }
+
+        const payload = audioPendingUpload;
+        if (payload.blob.size > MAX_AUDIO_BYTES) {
+          setVoiceStatus(`Recording is too large. The upload limit is ${Math.round(MAX_AUDIO_BYTES / (1024 * 1024))}MB.`, 'error');
+          return;
+        }
+
+        const retryPanel = document.getElementById('voiceRetryPanel');
+        if (retryPanel) retryPanel.classList.add('hidden');
+        setVoiceStatus('Uploading audio…');
+        setVoiceUploadProgress(0);
+        try {
+          const audioData = await blobToBase64(payload.blob);
+          const response = await uploadVoicePayload(`/api/cases/${caseId}/audio`, {
+              caseId,
+              audioData,
+              mimeType: payload.mimeType,
+              durationMs: payload.durationMs,
+              recordedAt: payload.recordedAt,
+              source: voiceCaptureSource,
+              sizeBytes: payload.blob.size,
+              fileName: payload.fileName || `voice-capture.${audioExtensionForMimeType(payload.mimeType)}`,
+            }, setVoiceUploadProgress);
+          audioPendingUpload = null;
+          setVoiceUploadProgress(null);
+          setVoiceStatus(response.message || 'Audio uploaded.');
+          if (response.transcript?.id) pollTranscriptStatus(caseId, response.transcript.id);
+          await viewCase(caseId, true);
+          await loadAdminInbox();
+        } catch (error) {
+          setVoiceUploadProgress(null);
+          if (retryPanel) retryPanel.classList.remove('hidden');
+          setVoiceStatus(error.message || 'Audio upload failed. You can retry or discard the recording.', 'error');
+        }
+      }
+
+      async function startTranscriptProcessing(caseId, transcriptId) {
+        setVoiceStatus('Transcribing and cleaning audio…');
+        try {
+          const res = await fetch(`/api/cases/${caseId}/transcripts`, { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ transcriptId }) });
+          const payload = await res.json();
+          if (!res.ok && res.status !== 409) throw new Error(payload.message || 'Transcription failed.');
+          await pollTranscriptStatus(caseId, transcriptId || payload.transcript?.id);
+        } catch (error) {
+          setVoiceStatus(`${error.message || 'Transcription failed.'} Retry from the transcript review panel.`, 'error');
+        }
+      }
+
+      async function pollTranscriptStatus(caseId, transcriptId) {
+        if (!transcriptId) return;
+        for (let attempt = 0; attempt < 180; attempt += 1) {
+          const res = await fetch(`/api/cases/${caseId}/transcripts/latest`, { credentials: 'same-origin' });
+          const payload = await res.json().catch(() => ({}));
+          const transcript = payload.transcript;
+          if (!res.ok || !transcript || transcript.id !== transcriptId) return;
+          updateTranscriptProgressUi(transcript);
+          if (transcript.status === 'review-required' || transcript.status === 'approved') {
+            setVoiceStatus('Transcript is ready for review.');
+            return;
+          }
+          if (transcript.status === 'failed') {
+            setVoiceStatus(transcript.failureMessage || 'Transcription failed. Retry from the transcript review panel.', 'error');
+            return;
+          }
+          await new Promise((resolve) => setTimeout(resolve, 1000));
+        }
+        setVoiceStatus('Transcription is still processing. Open Transcript Review to check its status.');
+      }
+
+      function formatProcessingDuration(startedAt, completedAt) {
+        if (!startedAt) return 'Waiting to start';
+        const seconds = Math.max(0, Math.floor((new Date(completedAt || Date.now()) - new Date(startedAt)) / 1000));
+        return seconds >= 60 ? `${Math.floor(seconds / 60)}m ${seconds % 60}s` : `${seconds}s`;
+      }
+
+      function updateTranscriptProgressUi(transcript) {
+        const processing = transcript?.processing || {};
+        const activeStages = Array.isArray(processing.activeStages) && processing.activeStages.length ? processing.activeStages : [processing.stage || transcript.status || 'queued'];
+        const fill = document.getElementById('transcriptProgressFill');
+        const label = document.getElementById('transcriptProgressLabel');
+        const elapsed = document.getElementById('transcriptProgressElapsed');
+        if (!fill || !label || !elapsed) return;
+        fill.style.width = `${Math.max(0, Math.min(100, Number(processing.percent) || 0))}%`;
+        label.textContent = transcript.status === 'review-required' ? 'Ready for review' : activeStages.map((stage) => ({ transcribing: 'Transcribing audio', diarizing: 'Detecting speakers', cleaning: 'Cleaning transcript' }[stage] || stage)).join(' + ');
+        elapsed.textContent = `Elapsed: ${formatProcessingDuration(processing.startedAt, processing.completedAt)}`;
+      }
+
+      async function retryVoiceUpload() {
+        await uploadVoiceRecording();
+      }
+
+      async function discardVoiceRecording() {
+        const caseId = currentCaseId || getCaseRouteId();
+        if (!caseId) return;
+
+        if (audioPendingUpload) {
+          audioPendingUpload = null;
+          setVoiceStatus('Discarded the pending recording.');
+          updateVoiceRecorderUi('idle');
+          const retryPanel = document.getElementById('voiceRetryPanel');
+          if (retryPanel) retryPanel.classList.add('hidden');
+          return;
+        }
+
+        const confirmDiscard = window.confirm('Discard the latest uploaded audio recording?');
+        if (!confirmDiscard) return;
+
+        const res = await fetch(`/api/cases/${caseId}/audio/latest`, {
+          method: 'DELETE',
+          credentials: 'same-origin',
+        });
+        const response = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          setVoiceStatus(response.message || 'Unable to discard the latest recording.', 'error');
+          return;
+        }
+        setVoiceStatus('Latest recording discarded.');
+        await viewCase(caseId, true);
+        await loadAdminInbox();
+      }
+
+      // Global fetch wrapper that includes same-origin credentials by default
+      async function sfetch(input, init = {}) {
+        const merged = Object.assign({}, init, { credentials: init.credentials || 'same-origin' });
+        return fetch(input, merged);
+      }
+
       async function checkAuth() {
         try {
-          const res = await fetch('/api/me');
+          const res = await sfetch('/api/me');
           if (!res.ok) {
+            isAuthenticated = false;
             setAuthStatus('Not signed in', '');
             setSignInEnabled(true);
-            document.getElementById('dashboard').classList.add('hidden');
+            setProtectedUiEnabled(false);
             document.getElementById('appointmentsBody').innerHTML = '<tr><td colspan="7">Sign in to view appointments.</td></tr>';
+            currentUser = null;
+            isAdmin = false;
+            updateAdminUi();
             return;
           }
           const payload = await res.json();
           setAuthStatus(`${payload.user.name} · ${payload.user.role}`, 'connected');
           setSignInEnabled(false);
-          document.getElementById('dashboard').classList.remove('hidden');
+          setProtectedUiEnabled(true);
+          setSyncEnabled(true);
+          currentUser = payload.user;
+          isAdmin = payload.user?.role === 'Clinic Administrator';
+          updateAdminUi();
+          isAuthenticated = true;
+          await loadManualCaseDepartments();
           await loadAppointments();
+          await loadAdminInbox();
+          await showRoute();
         } catch (error) {
+          isAuthenticated = false;
           setAuthStatus('Auth check failed', 'error');
           setSignInEnabled(true);
+          setProtectedUiEnabled(false);
           document.getElementById('appointmentsBody').innerHTML = '<tr><td colspan="7">Unable to reach the auth endpoint.</td></tr>';
+          currentUser = null;
+          isAdmin = false;
+          updateAdminUi();
         }
       }
 
       async function loadAppointments() {
+        if (!isAuthenticated) {
+          renderEmptyState('appointmentsBody', 'Sign in to view appointments.', 7);
+          return;
+        }
+        renderTableSkeleton('appointmentsBody', 7);
         const params = new URLSearchParams();
         const date = document.getElementById('dateFilter').value;
         const provider = document.getElementById('providerFilter').value;
@@ -375,13 +1712,23 @@
           <div class="box"><strong>${payload.dashboard.summary.completed}</strong><br/>Completed</div>`;
 
         lastAppointments = payload.dashboard.appointments;
+        document.getElementById('workspaceMetricAppointments').textContent = String(lastAppointments.length || 0);
         await loadCases();
       }
 
       function renderAppointments() {
         const casedAppointmentIds = new Map(lastCases.map((item) => [item.appointmentId, item]));
+        const sortedAppointments = applySort(lastAppointments, appointmentSort, (appointment, key) => {
+          const values = {
+            patient: appointment.patient,
+            provider: appointment.provider,
+            date: appointment.date,
+            status: appointment.status,
+          };
+          return values[key];
+        });
 
-        const rows = lastAppointments.map((appointment) => {
+        const rows = sortedAppointments.map((appointment) => {
           const existingCase = casedAppointmentIds.get(appointment.id);
           const caseCell = existingCase
             ? `<button class="secondary small" onclick="App.viewCase('${existingCase.id}')">View case (${existingCase.status})</button>`
@@ -393,14 +1740,15 @@
               <td>${appointment.patientId ?? '—'}</td>
               <td>${appointment.provider}</td>
               <td>${appointment.date}</td>
-              <td>${appointment.status}</td>
+              <td>${statusPill(appointment.status, APPOINTMENT_STATUS_TONES)}</td>
               <td title="${(appointment.reason || '').replace(/"/g, '&quot;')}">${appointment.reason}</td>
               <td>${caseCell}</td>
             </tr>
           `;
         }).join('');
 
-        document.getElementById('appointmentsBody').innerHTML = rows || '<tr><td colspan="7">No appointments match the current filters.</td></tr>';
+        document.getElementById('appointmentsBody').innerHTML = rows || '<tr><td colspan="7"><div class="empty-state">No appointments match the current filters.</div></td></tr>';
+        updateSortIndicators('appointmentSort', appointmentSort, ['Patient', 'Provider', 'Date', 'Status']);
       }
 
       function renderCaseStatusFilterOptions() {
@@ -411,22 +1759,80 @@
         select.value = current;
       }
 
+      function renderAdminInbox(entries = []) {
+        const container = document.getElementById('adminInboxBody');
+        if (!container) return;
+
+        if (!entries.length) {
+          container.innerHTML = '<div class="empty-state">No admin activity has been recorded yet.</div>';
+          return;
+        }
+
+        const html = entries.map((entry) => {
+          const actionLabel = {
+            create: 'Case created',
+            'status:update': entry.details && entry.details.to ? `Status changed to ${entry.details.to}` : 'Status updated',
+            'admin:note': 'Admin note added',
+            'audio:captured': 'Audio captured',
+            'transcript:cleaned': 'Transcript cleaned',
+            'athena:link': 'Athena link established',
+            'athena:unlink': 'Athena link removed',
+            'athena-patient:link': 'Athena patient linked',
+            'athena-patient:unlink': 'Athena patient link removed',
+            'admin:login': 'Admin signed in',
+            'admin:patient-intake': 'Patient intake completed',
+          }[entry.action] || entry.action;
+          const caseLabel = entry.case ? `${entry.case.patientName || 'Case'} (${entry.case.id.slice(0, 8)})` : 'System context';
+          const details = entry.details ? `<div class="timeline-meta">${JSON.stringify(entry.details)}</div>` : '';
+          return `
+            <div class="timeline-item">
+              <div class="timeline-marker">${iconSvg('activity')}</div>
+              <div class="timeline-body">
+                <strong>${actionLabel}</strong>
+                <div class="timeline-meta">${entry.actor || 'system'} · ${caseLabel}</div>
+                ${details}
+                <div class="timeline-meta">${new Date(entry.createdAt).toLocaleString()}</div>
+              </div>
+            </div>`;
+        }).join('');
+
+        container.innerHTML = html;
+      }
+
       function renderCases() {
-        const rows = lastCases.map((caseItem) => `
+        const sortedCases = applySort(lastCases, caseSort, (caseItem, key) => {
+          const values = {
+            patientName: caseItem.patientName,
+            providerName: caseItem.providerName,
+            appointmentDate: caseItem.appointmentDate,
+            status: caseItem.status,
+            createdAt: caseItem.createdAt,
+          };
+          return values[key];
+        });
+
+        const rows = sortedCases.map((caseItem) => `
           <tr>
             <td>${caseItem.patientName}</td>
             <td>${caseItem.patientId ?? '—'}</td>
             <td>${caseItem.providerName}</td>
             <td>${caseItem.appointmentDate}</td>
-            <td>${statusPill(caseItem.status, CASE_STATUS_COLORS)}</td>
+            <td>${statusPill(caseItem.status, CASE_STATUS_TONES)}</td>
             <td>${new Date(caseItem.createdAt).toLocaleString()}</td>
             <td><button class="secondary small" onclick="App.viewCase('${caseItem.id}')">View</button></td>
           </tr>
         `).join('');
-        document.getElementById('casesBody').innerHTML = rows || '<tr><td colspan="7">No cases created yet.</td></tr>';
+        document.getElementById('casesBody').innerHTML = rows || '<tr><td colspan="7"><div class="empty-state">No cases created yet.</div></td></tr>';
+        document.getElementById('workspaceMetricCases').textContent = String(lastCases.length || 0);
+        updateSortIndicators('caseSort', caseSort, ['PatientName', 'ProviderName', 'AppointmentDate', 'Status', 'CreatedAt']);
       }
 
       async function loadCases() {
+        if (!isAuthenticated || !isAdmin) {
+          renderEmptyState('casesBody', 'Sign in to view cases.', 7);
+          return;
+        }
+        renderTableSkeleton('casesBody', 7);
         const statusFilter = document.getElementById('caseStatusFilter').value;
         const params = new URLSearchParams();
         if (statusFilter) params.set('status', statusFilter);
@@ -439,21 +1845,102 @@
         const payload = await res.json();
         lastCases = payload.cases;
         caseStatuses = payload.statuses;
+        const feed = payload.feed;
+        const feedStatus = document.getElementById('caseFeedStatus');
+        if (feedStatus) {
+          feedStatus.classList.remove('hidden');
+          feedStatus.innerHTML = `Athena patient-case feed: ${feed && feed.configured ? 'configured' : 'not configured'} · ${feed?.queuedEvents || 0} queued events${feed?.lastSuccessAt ? ` · last synced ${new Date(feed.lastSuccessAt).toLocaleString()}` : ''}${feed?.lastError ? ` · ${feed.lastError}` : ''} <button class="secondary small" onclick="App.syncCaseFeed()">Retry / sync</button>`;
+        }
         renderCaseStatusFilterOptions();
         renderCases();
         renderAppointments();
+        document.getElementById('workspaceMetricIntake').textContent = isAuthenticated ? 'Ready' : '--';
         if (calendarLoaded) {
           renderCalendarWeek();
         }
       }
 
+      async function loadAdminInbox() {
+        if (!isAuthenticated || !isAdmin) {
+          renderAdminInbox([]);
+          return;
+        }
+
+        try {
+          const res = await fetch('/api/admin/inbox?limit=20', { credentials: 'same-origin' });
+          if (!res.ok) {
+            renderAdminInbox([]);
+            return;
+          }
+          const payload = await res.json();
+          renderAdminInbox(Array.isArray(payload.entries) ? payload.entries : []);
+        } catch (error) {
+          renderAdminInbox([]);
+        }
+      }
+
+      async function syncCaseFeed() {
+        const res = await fetch('/api/admin/feed/sync', { method: 'POST', credentials: 'same-origin' });
+        const payload = await res.json().catch(() => ({}));
+        if (!res.ok) { alert(payload.message || 'Unable to sync the patient-case feed.'); return; }
+        const linkRes = await fetch('/api/cases/athena-links/sync', { method: 'POST', credentials: 'same-origin' });
+        const linkPayload = await linkRes.json().catch(() => ({}));
+        if (!linkRes.ok) { alert(linkPayload.message || 'The patient-case feed synced, but existing case links could not be refreshed.'); }
+        else if (linkPayload.unresolved?.length) { alert(`${linkPayload.linked || 0} case link(s) updated. ${linkPayload.unresolved.length} case(s) still need Athena patient-case context.`); }
+        await loadCases();
+        await loadAdminInbox();
+      }
+
+      async function loadPracticeMembers() {
+        if (!isAdmin) return;
+        const res = await fetch('/api/admin/practice/members', { credentials: 'same-origin' });
+        const payload = await res.json().catch(() => ({}));
+        const container = document.getElementById('practiceMembersBody');
+        if (!res.ok) { container.innerHTML = '<div class="empty-state">Unable to load practice members.</div>'; return; }
+        container.innerHTML = (payload.members || []).map((member) => `<div class="timeline-item"><div class="timeline-body"><strong>${member.name || member.email}</strong><div class="timeline-meta">${member.email}</div><div class="actions"><select id="memberRole-${member.id}"><option value="member" ${member.role === 'member' ? 'selected' : ''}>Member</option><option value="admin" ${member.role === 'admin' ? 'selected' : ''}>Administrator</option></select><button class="secondary small" onclick="App.updatePracticeMember('${encodeURIComponent(member.email)}','${member.id}')">Save role</button></div></div></div>`).join('') || '<div class="empty-state">No practice members found.</div>';
+      }
+
+      async function updatePracticeMember(encodedEmail, id) {
+        const role = document.getElementById(`memberRole-${id}`).value;
+        const res = await fetch(`/api/admin/practice/members/${encodedEmail}`, { method: 'PATCH', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ role }) });
+        const payload = await res.json().catch(() => ({}));
+        if (!res.ok) { alert(payload.message || 'Unable to update member role.'); return; }
+        await loadPracticeMembers();
+      }
+
+      function sortAppointments(key) {
+        if (appointmentSort.key === key) {
+          appointmentSort.direction = appointmentSort.direction === 'asc' ? 'desc' : 'asc';
+        } else {
+          appointmentSort = { key, direction: key === 'date' ? 'asc' : 'asc' };
+        }
+        renderAppointments();
+      }
+
+      function sortCases(key) {
+        if (caseSort.key === key) {
+          caseSort.direction = caseSort.direction === 'asc' ? 'desc' : 'asc';
+        } else {
+          caseSort = { key, direction: key === 'createdAt' ? 'desc' : 'asc' };
+        }
+        renderCases();
+      }
+
       function showTab(tabName) {
+        document.getElementById('caseDetailPage').classList.add('hidden');
+        document.getElementById('dashboard').classList.remove('hidden');
         document.getElementById('tab-list').classList.toggle('hidden', tabName !== 'list');
         document.getElementById('tab-calendar').classList.toggle('hidden', tabName !== 'calendar');
         document.getElementById('tab-cases').classList.toggle('hidden', tabName !== 'cases');
+        document.getElementById('tab-intake').classList.toggle('hidden', tabName !== 'intake');
+        document.getElementById('tab-inbox')?.classList.toggle('hidden', tabName !== 'inbox');
+        document.getElementById('tab-settings')?.classList.toggle('hidden', tabName !== 'settings');
         document.getElementById('tabBtnList').classList.toggle('active', tabName === 'list');
         document.getElementById('tabBtnCalendar').classList.toggle('active', tabName === 'calendar');
         document.getElementById('tabBtnCases').classList.toggle('active', tabName === 'cases');
+        document.getElementById('tabBtnIntake').classList.toggle('active', tabName === 'intake');
+        document.getElementById('tabBtnInbox')?.classList.toggle('active', tabName === 'inbox');
+        document.getElementById('tabBtnSettings')?.classList.toggle('active', tabName === 'settings');
 
         if (tabName === 'calendar' && !calendarLoaded) {
           if (!calendarAnchorDate) {
@@ -465,6 +1952,215 @@
 
         if (tabName === 'cases') {
           loadCases();
+          loadManualCaseDepartments();
+        }
+
+        if (tabName === 'intake') {
+          hydrateIntakeDraftToForm();
+          bindPatientIntakeDraftListeners();
+          renderIntakeContextBanner();
+          renderIntakeMatches();
+        }
+
+        if (tabName === 'inbox') {
+          loadAdminInbox();
+        }
+        if (tabName === 'settings') loadPracticeMembers();
+      }
+
+      function validatePatientIntakeDraft(draft) {
+        const required = [
+          ['firstName', 'Legal first name'],
+          ['lastName', 'Legal last name'],
+          ['dob', 'Date of birth'],
+          ['sex', 'Sex / gender'],
+          ['phone', 'Primary phone'],
+          ['address1', 'Address line 1'],
+          ['city', 'City'],
+          ['state', 'State'],
+          ['zip', 'ZIP'],
+          ['payerName', 'Insurance payer'],
+        ];
+
+        const missing = required.filter(([field]) => !String(draft[field] || '').trim()).map(([, label]) => label);
+        if (missing.length) {
+          return `Please complete: ${missing.join(', ')}`;
+        }
+
+        if (draft.email && !/^\S+@\S+\.\S+$/.test(draft.email)) {
+          return 'Please enter a valid email address.';
+        }
+
+        if (draft.phone && !/[0-9]/.test(draft.phone)) {
+          return 'Please enter a valid primary phone number.';
+        }
+
+        if (draft.dob && Number.isNaN(Date.parse(draft.dob))) {
+          return 'Please enter a valid date of birth.';
+        }
+
+        return '';
+      }
+
+      function hydrateIntakeDraftToForm() {
+        const fields = {
+          intakeFirstName: 'firstName',
+          intakeLastName: 'lastName',
+          intakeDob: 'dob',
+          intakeSex: 'sex',
+          intakePhone: 'phone',
+          intakeEmail: 'email',
+          intakeAddress1: 'address1',
+          intakeAddress2: 'address2',
+          intakeCity: 'city',
+          intakeState: 'state',
+          intakeZip: 'zip',
+          intakePayerName: 'payerName',
+          intakeMemberId: 'memberId',
+          intakeGroupNumber: 'groupNumber',
+          intakeEmergencyName: 'emergencyContactName',
+          intakeEmergencyPhone: 'emergencyContactPhone',
+          intakeNotes: 'notes',
+        };
+
+        Object.entries(fields).forEach(([id, key]) => {
+          const element = document.getElementById(id);
+          if (element && intakeDraft[key] != null) {
+            element.value = intakeDraft[key];
+          }
+        });
+      }
+
+      function collectPatientIntakeDraft() {
+        intakeDraft = buildIntakeDraft();
+        return intakeDraft;
+      }
+
+      async function searchIntakeDuplicates() {
+        const draft = collectPatientIntakeDraft();
+        const validationError = validatePatientIntakeDraft(draft);
+        if (validationError) {
+          updateIntakeStatus(validationError, 'error');
+          return;
+        }
+
+        updateIntakeStatus('Checking Athena for possible duplicates…');
+        const res = await fetch('/api/patients/intake/matches', {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            firstName: draft.firstName,
+            lastName: draft.lastName,
+            dob: draft.dob,
+            phone: draft.phone,
+            email: draft.email,
+            memberId: draft.memberId,
+          }),
+        });
+        const payload = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          updateIntakeStatus(payload.message || 'Unable to search Athena for duplicates.', 'error');
+          return;
+        }
+
+        intakeMatches = Array.isArray(payload.matches) ? payload.matches : [];
+        intakeSelectedAthenaPatientId = null;
+        intakeForceCreate = false;
+        renderIntakeMatches(intakeMatches);
+        updateIntakeStatus(intakeMatches.length ? 'Potential matches found. Confirm existing patient or continue to create a new one.' : 'No duplicate matches found. You can create the patient in Athena.');
+      }
+
+      async function submitPatientIntake({ forceCreate = false } = {}) {
+        const draft = collectPatientIntakeDraft();
+        const validationError = validatePatientIntakeDraft(draft);
+        if (validationError) {
+          updateIntakeStatus(validationError, 'error');
+          return;
+        }
+
+        intakeForceCreate = forceCreate || intakeForceCreate;
+        const payloadBody = {
+          patient: draft,
+          caseId: intakeContext.caseId || null,
+          appointmentId: intakeContext.appointmentId || null,
+          existingAthenaPatientId: intakeSelectedAthenaPatientId || null,
+          forceCreate: intakeForceCreate || false,
+        };
+
+        updateIntakeStatus(intakeSelectedAthenaPatientId ? 'Linking existing Athena patient…' : 'Creating patient in Athena…');
+        const res = await fetch('/api/patients/intake', {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payloadBody),
+        });
+        const payload = await res.json().catch(() => ({}));
+        if (res.status === 409 && Array.isArray(payload.matches)) {
+          intakeMatches = payload.matches;
+          renderIntakeMatches(intakeMatches);
+          updateIntakeStatus(payload.message || 'Potential duplicate patient found. Choose existing or create anyway.', 'error');
+          return;
+        }
+        if (!res.ok) {
+          updateIntakeStatus(payload.message || 'Unable to save patient intake.', 'error');
+          return;
+        }
+
+        intakeMatches = [];
+        intakeSelectedAthenaPatientId = null;
+        intakeForceCreate = false;
+        renderIntakeMatches([]);
+        updateIntakeStatus(payload.created ? `Athena patient ${payload.athenaPatient.id} created successfully.` : `Athena patient ${payload.athenaPatient.id} linked successfully.`);
+        if (payload.case?.id) {
+          await viewCase(payload.case.id, true);
+          return;
+        }
+        if (payload.reference?.athenaPatientId) {
+          intakeDraft = {};
+        }
+      }
+
+      async function createIntakeAnyway() {
+        intakeForceCreate = true;
+        await submitPatientIntake({ forceCreate: true });
+      }
+
+      async function linkSelectedPatientToContext() {
+        if (!intakeSelectedAthenaPatientId) {
+          updateIntakeStatus('Select an existing Athena patient first.', 'error');
+          return;
+        }
+
+        const draft = collectPatientIntakeDraft();
+        const validationError = validatePatientIntakeDraft(draft);
+        if (validationError) {
+          updateIntakeStatus(validationError, 'error');
+          return;
+        }
+
+        const res = await fetch('/api/patients/intake', {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            patient: draft,
+            caseId: intakeContext.caseId || null,
+            appointmentId: intakeContext.appointmentId || null,
+            existingAthenaPatientId: intakeSelectedAthenaPatientId,
+          }),
+        });
+        const payload = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          updateIntakeStatus(payload.message || 'Unable to link selected Athena patient.', 'error');
+          return;
+        }
+
+        updateIntakeStatus(`Linked Athena patient ${payload.athenaPatient.id}.`);
+        intakeMatches = [];
+        renderIntakeMatches([]);
+        if (payload.case?.id) {
+          await viewCase(payload.case.id, true);
         }
       }
 
@@ -496,6 +2192,56 @@
           d.setDate(d.getDate() + i);
           return d;
         });
+      }
+
+      async function syncFromAthena() {
+        if (!isAuthenticated) {
+          alert('Please sign in first to sync from Athena.');
+          return;
+        }
+
+        const params = new URLSearchParams();
+        const date = document.getElementById('dateFilter').value;
+        const provider = document.getElementById('providerFilter').value;
+        const patient = document.getElementById('patientFilter').value;
+        const status = document.getElementById('statusFilter').value;
+        if (date) params.set('date', date);
+        if (provider) params.set('provider', provider);
+        if (patient) params.set('patient', patient);
+        if (status) params.set('status', status);
+
+        const payloadBody = Object.fromEntries(params.entries());
+
+        beginLoading();
+        let res;
+        try {
+          res = await fetch('/api/appointments/sync', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payloadBody),
+          });
+        } catch (error) {
+          endLoading();
+          alert(error.message || 'Unable to sync from Athena.');
+          return;
+        }
+
+        try {
+          if (!res.ok) {
+            const payload = await res.json().catch(() => ({ message: 'Unable to sync from Athena.' }));
+            alert(payload.message || `Unable to sync from Athena. (${res.status})`);
+            return;
+          }
+
+          const payload = await res.json();
+          document.getElementById('authMessage').textContent = `Synced ${payload.appointmentsCount} appointments; auto-created ${payload.autoCreatedCases} cases.`;
+          await loadAppointments();
+        } catch (error) {
+          alert(error.message || 'Unable to sync from Athena.');
+        } finally {
+          endLoading();
+        }
       }
 
       async function loadDepartmentOptions() {
@@ -551,6 +2297,7 @@
       }
 
       let calendarRequestId = 0;
+      const prefetchedCalendarQueries = new Set();
 
       function setCalendarNavDisabled(disabled) {
         document.getElementById('calendarPrevBtn').disabled = disabled;
@@ -608,7 +2355,13 @@
                 d.setDate(d.getDate() + i);
                 return d;
               });
-          fetch(`/api/dashboard?${buildDashboardQuery(days)}`).catch(() => {});
+          const query = buildDashboardQuery(days);
+          if (prefetchedCalendarQueries.has(query)) return;
+          prefetchedCalendarQueries.add(query);
+          fetch(`/api/dashboard?${query}`).catch(() => {
+            // Keep a failed range eligible for a later, successful live sync.
+            prefetchedCalendarQueries.delete(query);
+          });
         });
       }
 
@@ -642,7 +2395,11 @@
           const syncNote = payload.dashboard.syncedLive ? 'synced from Athena just now' : 'served from sync cache';
           document.getElementById('calendarWeekLabel').textContent = `${calendarAppointments.length} appointment(s) — ${syncNote}`;
           renderCalendarWeek();
-          prefetchAdjacentRanges();
+          // Prefetching is useful only when Athena is healthy. Avoid creating
+          // extra retries while the server is intentionally using fallback data.
+          if (payload.dashboard.source === 'athena') {
+            prefetchAdjacentRanges();
+          }
         } finally {
           if (requestId === calendarRequestId) {
             setCalendarNavDisabled(false);
@@ -664,6 +2421,7 @@
         const caseAction = existingCase
           ? `<button onclick="App.closeAppointmentDetail(); App.viewCase('${existingCase.id}')">View case (${existingCase.status})</button>`
           : `<button onclick="App.closeAppointmentDetail(); App.createCaseFromAppointment('${appointment.id}')">Create case</button>`;
+        const intakeAction = `<button class="secondary" onclick="App.closeAppointmentDetail(); App.openPatientIntakeForAppointment('${appointment.id}')">Patient intake</button>`;
 
         document.getElementById('appointmentDetailTitle').textContent = appointment.patient;
         document.getElementById('appointmentDetailBody').innerHTML = `
@@ -675,7 +2433,7 @@
           <div class="detail-row"><span>Status</span><span>${statusPill(appointment.status, APPOINTMENT_STATUS_COLORS)}</span></div>
           <div class="detail-row"><span>Reason</span><span>${appointment.reason || '—'}</span></div>
           <div class="detail-row"><span>Visit type</span><span>${appointment.visitType || '—'}</span></div>
-          <div class="actions" style="margin-top: 10px;">${caseAction}</div>
+          <div class="actions" style="margin-top: 10px;">${caseAction}${intakeAction}</div>
         `;
         document.getElementById('appointmentDetailOverlay').classList.remove('hidden');
       }
@@ -788,6 +2546,7 @@
       async function createCaseFromAppointment(appointmentId) {
         const res = await fetch('/api/cases', {
           method: 'POST',
+          credentials: 'same-origin',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ appointmentId }),
         });
@@ -798,46 +2557,512 @@
           return;
         }
         await loadCases();
-        viewCase(payload.case.id);
+        await viewCase(payload.case.id);
+        await loadAdminInbox();
+      }
+
+
+      async function loadManualCaseDepartments() {
+        const res = await fetch('/api/departments');
+        if (!res.ok) return;
+        const payload = await res.json();
+        if (!payload.ok) return;
+        const select = document.getElementById('manualDepartmentId');
+        select.innerHTML = '<option value="">Select a department</option>' +
+          payload.departments.map((dept) => `<option value="${dept.id}">${dept.name}</option>`).join('');
+      }
+
+      async function loadManualProviders() {
+        const departmentId = document.getElementById('manualDepartmentId').value;
+        const select = document.getElementById('manualProviderId');
+        select.innerHTML = '<option value="">Select a provider</option>';
+        if (!departmentId) return;
+
+        const res = await fetch(`/api/providers?departmentId=${encodeURIComponent(departmentId)}`);
+        if (!res.ok) return;
+        const payload = await res.json();
+        if (!payload.ok) return;
+        select.innerHTML = '<option value="">Select a provider</option>' +
+          payload.providers.map((provider) => `<option value="${provider.id}">${provider.displayName || provider.name || provider.id}</option>`).join('');
+      }
+
+      async function resolveManualPatientName() {
+        const patientId = document.getElementById('manualPatientId').value.trim();
+        const patientNameInput = document.getElementById('manualPatientName');
+        patientNameInput.value = '';
+        document.getElementById('manualVisitType').value = '';
+        if (!patientId) {
+          return;
+        }
+
+        const res = await fetch(`/api/patients/${encodeURIComponent(patientId)}`);
+        if (!res.ok) {
+          return;
+        }
+        const payload = await res.json();
+        if (payload.ok && payload.patient) {
+          patientNameInput.value = payload.patient.fullName || payload.patient.name || '';
+        }
+
+        if (document.getElementById('manualDepartmentId').value) {
+          await loadManualProviders();
+        }
+        await loadManualVisitType();
+      }
+
+      async function loadManualVisitType() {
+        const patientId = document.getElementById('manualPatientId').value.trim();
+        const departmentId = document.getElementById('manualDepartmentId').value;
+        const visitTypeSelect = document.getElementById('manualVisitType');
+        if (!patientId || !departmentId) {
+          return;
+        }
+
+        const params = new URLSearchParams();
+        params.set('patientId', patientId);
+        params.set('departmentId', departmentId);
+
+        const res = await fetch(`/api/appointments?${params.toString()}`);
+        if (!res.ok) {
+          return;
+        }
+        const payload = await res.json();
+        if (!payload.ok || !Array.isArray(payload.appointments)) {
+          return;
+        }
+
+        const match = payload.appointments.find((appt) => String(appt.patientId) === patientId);
+        if (!match) {
+          return;
+        }
+
+        if (match.visitType) {
+          const normalizedVisitType = String(match.visitType);
+          const optionExists = [...visitTypeSelect.options].some((option) => option.value === normalizedVisitType);
+          if (!optionExists) {
+            visitTypeSelect.insertAdjacentHTML('beforeend', `<option value="${normalizedVisitType}">${normalizedVisitType}</option>`);
+          }
+          visitTypeSelect.value = normalizedVisitType;
+        }
+
+        if (match.providerId) {
+          const providerSelect = document.getElementById('manualProviderId');
+          const providerValue = String(match.providerId);
+          const optionExists = [...providerSelect.options].some((option) => option.value === providerValue);
+          if (!optionExists) {
+            providerSelect.insertAdjacentHTML('beforeend', `<option value="${providerValue}">${match.provider}</option>`);
+          }
+          providerSelect.value = providerValue;
+        }
+
+        if (!document.getElementById('manualAppointmentDate').value && match.date) {
+          document.getElementById('manualAppointmentDate').value = match.date;
+        }
+        if (!document.getElementById('manualAppointmentTime').value && match.startTime) {
+          document.getElementById('manualAppointmentTime').value = match.startTime.slice(11, 16);
+        }
+      }
+
+      async function onManualDepartmentChange() {
+        await loadManualProviders();
+        await loadManualVisitType();
+      }
+
+      async function createManualCase() {
+        const patientId = document.getElementById('manualPatientId').value.trim();
+        const departmentId = document.getElementById('manualDepartmentId').value;
+        const providerId = document.getElementById('manualProviderId').value;
+        const reason = document.getElementById('manualReason').value.trim();
+        const visitType = document.getElementById('manualVisitType').value.trim();
+        const appointmentDate = document.getElementById('manualAppointmentDate').value || null;
+        const appointmentTime = document.getElementById('manualAppointmentTime').value.trim();
+
+        if (!patientId) {
+          alert('Athena patient ID is required to create an Athena-backed case.');
+          document.getElementById('manualPatientId').focus();
+          return;
+        }
+        if (!departmentId) {
+          alert('Please select an Athena department.');
+          document.getElementById('manualDepartmentId').focus();
+          return;
+        }
+        if (!providerId) {
+          alert('Please select an Athena provider.');
+          document.getElementById('manualProviderId').focus();
+          return;
+        }
+        if (!visitType) {
+          alert('Please choose a visit type such as New Visit, Refill, or Follow-up.');
+          document.getElementById('manualVisitType').focus();
+          return;
+        }
+        if (!reason) {
+          alert('Reason/subject is required to create the Athena patient case.');
+          document.getElementById('manualReason').focus();
+          return;
+        }
+
+        let resolvedAppointmentId = null;
+        try {
+          const params = new URLSearchParams();
+          params.set('patientId', patientId);
+          params.set('departmentId', departmentId);
+          const appointmentsRes = await fetch(`/api/appointments?${params.toString()}`);
+          const appointmentsPayload = await appointmentsRes.json();
+          if (appointmentsRes.ok && appointmentsPayload.ok && Array.isArray(appointmentsPayload.appointments)) {
+            const appointmentCandidates = appointmentsPayload.appointments
+              .filter((appt) => String(appt.patientId) === String(patientId))
+              .sort((left, right) => {
+                const leftDate = left.date || '';
+                const rightDate = right.date || '';
+                const leftTime = left.startTime || '';
+                const rightTime = right.startTime || '';
+                const leftSort = `${leftDate}T${leftTime}`;
+                const rightSort = `${rightDate}T${rightTime}`;
+                return leftSort.localeCompare(rightSort);
+              });
+
+            const upcomingAppointments = appointmentCandidates.filter((appt) => {
+              const appointmentDate = appt.date || null;
+              const appointmentStartTime = appt.startTime || null;
+              if (!appointmentDate) return false;
+              const appointmentValue = appointmentStartTime || `${appointmentDate}T23:59:59`;
+              return new Date(appointmentValue) >= new Date();
+            });
+            const latestUpcomingAppointment = upcomingAppointments[upcomingAppointments.length - 1] || null;
+            const latestPastAppointment = appointmentCandidates.filter((appt) => {
+              const appointmentDate = appt.date || null;
+              const appointmentStartTime = appt.startTime || null;
+              if (!appointmentDate) return false;
+              const appointmentValue = appointmentStartTime || `${appointmentDate}T23:59:59`;
+              return new Date(appointmentValue) < new Date();
+            }).pop() || null;
+
+            resolvedAppointmentId = latestUpcomingAppointment?.id || latestPastAppointment?.id || null;
+          }
+        } catch (error) {
+          console.error('Unable to resolve appointment for manual case.', error);
+        }
+
+        if (!resolvedAppointmentId) {
+          alert('No appointment found for this patient — schedule one in Athena first.');
+          return;
+        }
+
+        console.log('Resolved manual case appointmentId:', resolvedAppointmentId);
+
+        const payloadBody = {
+          appointmentId: resolvedAppointmentId,
+          patientId,
+          providerId,
+          departmentId,
+          reason,
+          visitType: visitType || null,
+          appointmentDate,
+          appointmentStartTime: appointmentDate && appointmentTime
+            ? `${appointmentDate}T${appointmentTime}:00`
+            : null,
+        };
+
+        const res = await fetch('/api/cases', {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payloadBody),
+        });
+
+        const payload = await res.json();
+        if (!res.ok) {
+          alert(payload.message || 'Unable to create Athena-linked case.');
+          return;
+        }
+
+        document.getElementById('manualPatientName').value = '';
+        document.getElementById('manualPatientId').value = '';
+        document.getElementById('manualDepartmentId').value = '';
+        document.getElementById('manualProviderId').innerHTML = '<option value="">Select a provider</option>';
+        document.getElementById('manualVisitType').value = '';
+        document.getElementById('manualAppointmentDate').value = '';
+        document.getElementById('manualAppointmentTime').value = '';
+        document.getElementById('manualReason').value = '';
+
+        await loadCases();
+        await viewCase(payload.case.id);
+        await loadAdminInbox();
       }
 
       function renderCaseModal(caseItem) {
-        const historyHtml = caseItem.statusHistory.map((entry) =>
-          `<div class="history-item">${new Date(entry.at).toLocaleString()} — ${entry.status}</div>`
-        ).join('');
+        const latestAudio = Array.isArray(caseItem.audioRecordings) && caseItem.audioRecordings.length
+          ? caseItem.audioRecordings[caseItem.audioRecordings.length - 1]
+          : null;
+        const historyHtml = (caseItem.statusHistory || []).map((entry) => `
+          <div class="timeline-item">
+            <div class="timeline-marker">${iconSvg('clock')}</div>
+            <div class="timeline-body">
+              <strong>${entry.status}</strong>
+              <div class="timeline-meta">${new Date(entry.at).toLocaleString()}</div>
+            </div>
+          </div>
+        `).join('') || '<div class="empty-state">No status history yet.</div>';
+
+        const noteHtml = (caseItem.notes || []).map((note) => `
+          <div class="comment-card">
+            <header>
+              <strong>${note.author || 'Admin'}</strong>
+              <span>${new Date(note.createdAt).toLocaleString()}</span>
+            </header>
+            <div>${note.text}</div>
+          </div>
+        `).join('') || '<div class="empty-state">No notes yet.</div>';
+
+        const formatActivityAction = (entry) => {
+          const actionLabels = {
+            create: 'Case created',
+            'status:update': entry.details && entry.details.to ? `Status changed to ${entry.details.to}` : 'Status updated',
+            'athena:link': 'Sent to Athena',
+            'athena:unlink': 'Athena link removed',
+            'admin:note': 'Admin note added',
+            'audio:captured': 'Audio captured',
+            'transcript:cleaned': 'Transcript cleaned',
+            'prompt:executed': 'Prompt executed',
+            'ai:output': 'AI output generated',
+          };
+          return actionLabels[entry.action] || entry.action;
+        };
+
+        const activityHtml = (caseItem.activity || []).map((entry) => `
+          <div class="timeline-item">
+            <div class="timeline-marker">${iconSvg('activity')}</div>
+            <div class="timeline-body">
+              <strong>${formatActivityAction(entry)}</strong>
+              <div class="timeline-meta">${entry.actor || 'system'}${entry.details ? ` · ${JSON.stringify(entry.details)}` : ''}</div>
+              <div class="timeline-meta">${new Date(entry.createdAt).toLocaleString()}</div>
+            </div>
+          </div>
+        `).join('') || '<div class="empty-state">No activity yet.</div>';
 
         const statusOptions = caseStatuses.map((status) =>
           `<option value="${status}" ${status === caseItem.status ? 'selected' : ''}>${status}</option>`
         ).join('');
 
-        document.getElementById('caseModalBody').innerHTML = `
-          <div class="modal-row"><span>Case ID</span><span>${caseItem.id}</span></div>
-          <div class="modal-row"><span>Appointment ID</span><span>${caseItem.appointmentId}</span></div>
-          <div class="modal-row"><span>Patient</span><span>${caseItem.patientName}</span></div>
-          <div class="modal-row"><span>Patient ID</span><span>${caseItem.patientId ?? '—'}</span></div>
-          <div class="modal-row"><span>Provider</span><span>${caseItem.providerName}</span></div>
-          <div class="modal-row"><span>Department</span><span>${caseItem.department}</span></div>
-          <div class="modal-row"><span>Appointment date</span><span>${caseItem.appointmentDate} ${caseItem.appointmentStartTime ? caseItem.appointmentStartTime.slice(11, 16) : ''}</span></div>
-          <div class="modal-row"><span>Reason</span><span>${caseItem.reason || '—'}</span></div>
-          <div class="modal-row"><span>Visit type</span><span>${caseItem.visitType || '—'}</span></div>
-          <div class="modal-row"><span>Athena patient case</span><span>${caseItem.athenaPatientCaseId ? `${caseItem.athenaPatientCaseId} (${caseItem.athenaPatientCaseLinkState || 'linked'})` : (caseItem.athenaPatientCaseLinkState || 'not linked')}</span></div>
-          <div class="modal-row"><span>Athena case subject</span><span>${caseItem.athenaPatientCaseSubject || '—'}</span></div>
-          <div class="modal-row"><span>Athena case status</span><span>${caseItem.athenaPatientCaseStatus || '—'}</span></div>
-          <div class="modal-row"><span>Created</span><span>${new Date(caseItem.createdAt).toLocaleString()}</span></div>
-          <div class="modal-row"><span>Created by</span><span>${caseItem.createdBy || '—'}</span></div>
-          <div class="modal-row" style="align-items:center;">
-            <span>Status</span>
-            <span class="actions" style="gap:8px;">
-              <select id="caseStatusSelect">${statusOptions}</select>
-              <button class="small" onclick="App.updateCaseStatusFromModal('${caseItem.id}')">Update</button>
-            </span>
+        const statusUpdateHtml = isAdmin
+          ? `
+            <div class="modal-row admin-only" style="align-items:center;">
+              <span>Update status</span>
+              <span class="actions" style="gap:8px;">
+                <select id="caseStatusSelect">${statusOptions}</select>
+                <button class="small" onclick="App.updateCaseStatusFromModal('${caseItem.id}')">Update</button>
+              </span>
+            </div>
+          `
+          : '';
+
+        const athenaLifecycleUpdateHtml = isAdmin
+          ? `<div class="modal-row admin-only" style="align-items:center;"><span>Athena lifecycle</span><span class="actions" style="gap:8px;"><select id="athenaLifecycleSelect"><option value="REVIEW" ${caseItem.athenaLifecycleStatus === 'REVIEW' ? 'selected' : ''}>REVIEW</option><option value="CLOSED" ${caseItem.athenaLifecycleStatus === 'CLOSED' ? 'selected' : ''}>CLOSED</option></select><button class="small" onclick="App.updateAthenaLifecycleFromModal('${caseItem.id}')">Save</button></span></div>`
+          : '';
+
+        const adminNoteHtml = isAdmin
+          ? `
+            <div class="modal-row admin-only" style="align-items:flex-start; gap:12px;">
+              <span>Admin note</span>
+              <span style="width: 100%;">
+                <textarea id="caseNoteInput" rows="3" style="width:100%; margin-top:4px; border:1px solid #cbd5e1; border-radius:8px; padding:10px;"></textarea>
+                <button class="secondary small" style="margin-top:8px;" onclick="App.addCaseNote('${caseItem.id}')">Save note</button>
+              </span>
+            </div>
+          `
+          : '<div class="modal-row"><span>Admin actions</span><span>Only clinic administrators can update status or add notes.</span></div>';
+
+        const audioPanelHtml = `
+          <div class="detail-card">
+            <div class="detail-card-header">
+              <div>
+                <h4>Voice capture</h4>
+                <p>Record, pause, or discard dictation for this encounter.</p>
+              </div>
+            </div>
+            <div class="actions" style="margin-bottom: 8px;">
+              <button id="voiceStartBtn" class="small" onclick="App.startVoiceCapture()">Start</button>
+              <button id="voicePauseBtn" class="secondary small" onclick="App.pauseVoiceCapture()">Pause</button>
+              <button id="voiceResumeBtn" class="secondary small" onclick="App.resumeVoiceCapture()">Resume</button>
+              <button id="voiceStopBtn" class="secondary small" onclick="App.stopVoiceCapture()">Stop</button>
+              <button class="secondary small" onclick="document.getElementById('voiceFileInput').click()">Upload audio file</button>
+              <input id="voiceFileInput" type="file" accept="audio/mpeg,.mp3,audio/webm,.webm,audio/wav,.wav,audio/ogg,.ogg,audio/mp4,.mp4,audio/m4a,.m4a" style="display:none" onchange="App.selectAudioFile(this)" />
+              <button id="voiceDiscardBtn" class="secondary small" onclick="App.discardVoiceRecording()">Discard</button>
+            </div>
+            <div class="voice-meta">
+              <span class="voice-status"><span id="voiceStatusDot" class="voice-dot"></span><span id="voiceIndicator">Ready</span></span>
+              <span id="voiceTimer">00:00</span>
+            </div>
+            <div class="voice-meter"><div id="voiceMeterBar" class="voice-meter-bar"></div></div>
+            <div id="voiceUploadProgress" class="hidden" style="margin-top:8px;"><div style="height:6px; background:#e2e8f0; border-radius:999px; overflow:hidden;"><div id="voiceUploadProgressBar" style="height:100%; width:0; background:#0f4c81;"></div></div><div id="voiceUploadProgressLabel" class="timeline-meta" style="margin-top:4px;">Uploading 0%</div></div>
+            <div id="voiceError" class="voice-error"></div>
+            <div id="voiceRetryPanel" class="actions hidden" style="margin-top: 10px;">
+              <button class="secondary small" onclick="App.retryVoiceUpload()">Retry upload</button>
+              <button class="secondary small" onclick="App.discardVoiceRecording()">Discard local recording</button>
+            </div>
+            ${voiceCaptureSource === 'dashboard' ? `<button class="secondary small" onclick="App.openMobileVoiceCapture('${caseItem.id}')">Open mobile capture view</button>` : '<div class="timeline-meta">Mobile capture mode · this recording will be labelled Mobile.</div>'}
+            <div style="margin-top: 8px; color: var(--text-muted); font-size: 12px;">Upload MP3, WebM, WAV, OGG, MP4, or M4A (up to 50 MB / 60 minutes). Microphone recordings remain limited to 10 minutes.</div>
           </div>
-          <h4 style="margin-bottom: 4px;">Status history</h4>
-          ${historyHtml}
+        `;
+
+        const playbackHtml = latestAudio
+          ? `
+            <div class="detail-card" style="margin-top: 12px;">
+              <div class="detail-card-header">
+                <div>
+                  <h4>Latest recording</h4>
+                  <p>Playback the most recent uploaded audio for this case.</p>
+                </div>
+              </div>
+              <audio controls preload="metadata" src="${latestAudio.url || `/api/cases/${caseItem.id}/audio/latest`}"></audio>
+              <div class="timeline-meta">Recorded ${new Date(latestAudio.recordedAt || latestAudio.uploadedAt).toLocaleString()}${latestAudio.durationMs ? ` · ${formatDuration(latestAudio.durationMs / 1000)}` : ''}${latestAudio.sizeBytes ? ` · ${(latestAudio.sizeBytes / 1024).toFixed(1)} KB` : ''}</div>
+              <button class="secondary small" onclick="App.discardVoiceRecording()">Discard latest recording</button>
+            </div>
+          `
+          : '<div class="empty-state" style="margin-top: 12px;">No audio recording has been uploaded for this case yet.</div>';
+
+        const summaryPills = `
+          <div class="actions" style="gap: 8px;">
+            ${statusPill(caseItem.status, CASE_STATUS_TONES)}
+            <span class="status-pill status-pill--neutral">Case ${caseItem.id}</span>
+            <span class="status-pill status-pill--info">${caseItem.appointmentDate}</span>
+          </div>
+        `;
+
+        const overviewFields = [
+          ['Appointment ID', caseItem.appointmentId],
+          ['Encounter ID', caseItem.encounterId || '—'],
+          ['Patient', caseItem.patientName],
+          ['Patient ID', caseItem.patientId ?? '—'],
+          ['Provider', caseItem.providerName || '—'],
+          ['Department', caseItem.department || '—'],
+          ['Appointment date', `${caseItem.appointmentDate} ${caseItem.appointmentStartTime ? caseItem.appointmentStartTime.slice(11, 16) : ''}`],
+          ['Reason', caseItem.reason || '—'],
+          ['Visit type', caseItem.visitType || '—'],
+        ].map(([label, value]) => `<div class="detail-row"><span>${label}</span><span>${value}</span></div>`).join('');
+
+        const athenaFields = [
+          ['Athena patient case', caseItem.athenaPatientCaseId ? `${caseItem.athenaPatientCaseId} (${caseItem.athenaPatientCaseLinkState || 'linked'})` : (caseItem.athenaPatientCaseLinkState || 'not linked')],
+          ['Athena case subject', caseItem.athenaPatientCaseSubject || '—'],
+          ['Athena case status', caseItem.athenaPatientCaseStatus || '—'],
+          ['Created', new Date(caseItem.createdAt).toLocaleString()],
+          ['Created by', caseItem.createdBy || '—'],
+        ].map(([label, value]) => `<div class="detail-row"><span>${label}</span><span>${value}</span></div>`).join('');
+
+        const latestTranscript = Array.isArray(caseItem.transcripts) && caseItem.transcripts.length
+          ? caseItem.transcripts[caseItem.transcripts.length - 1] : null;
+        const escapeTranscript = (value) => String(value || '').replace(/[&<>]/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[char]));
+        const processing = latestTranscript?.processing || {};
+        const activeStages = Array.isArray(processing.activeStages) ? processing.activeStages : [];
+        const stages = [['queued', 'Queued'], ['transcribing', 'Transcribing audio'], ['diarizing', 'Detecting speakers'], ['cleaning', 'Cleaning transcript'], ['review-required', 'Ready for review']];
+        const stageIndex = stages.findIndex(([id]) => id === (processing.stage || latestTranscript?.status));
+        const transcriptProgressHtml = latestTranscript ? `
+          <div class="detail-card" style="margin:12px 0;background:#f8fafc;">
+            <div class="detail-card-header"><div><h4>Processing progress</h4><p>Live stage progress and elapsed time. CPU transcription is the longest step for long recordings.</p></div></div>
+            <div style="height:9px;background:#dbeafe;border-radius:999px;overflow:hidden;"><div id="transcriptProgressFill" style="height:100%;width:${Math.max(0, Math.min(100, Number(processing.percent) || 0))}%;background:#0f4c81;transition:width .3s ease;"></div></div>
+            <div class="actions" style="justify-content:space-between;margin-top:8px;"><strong id="transcriptProgressLabel">${escapeTranscript(activeStages.length ? activeStages.map((stage) => ({ transcribing: 'Transcribing audio', diarizing: 'Detecting speakers', cleaning: 'Cleaning transcript' }[stage] || stage)).join(' + ') : (processing.stage || latestTranscript.status))}</strong><span id="transcriptProgressElapsed" class="timeline-meta">Elapsed: ${formatProcessingDuration(processing.startedAt, processing.completedAt)}</span></div>
+            <div class="timeline-meta" style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;">${stages.map(([id, title], index) => `<span class="status-pill status-pill--${activeStages.includes(id) ? 'info' : index < stageIndex ? 'success' : 'neutral'}">${title}</span>`).join('')}</div>
+          </div>` : '';
+        const transcriptPanelHtml = latestTranscript ? `
+          <section id="transcriptReviewPanel" class="detail-card" style="margin-top: 12px;">
+            <div class="detail-card-header"><div><h4>Transcript review</h4><p>Status: ${latestTranscript.status}. Raw text is retained as an immutable source record.</p></div></div>
+            <div class="detail-row"><span>Provider</span><span>${latestTranscript.transcriptProvider || 'Pending'}</span></div>
+            <div class="detail-row"><span>Captured source</span><span>${(latestAudio && latestAudio.source) || 'Unknown'}</span></div>
+            ${transcriptProgressHtml}
+            ${latestTranscript.failureMessage ? `<div class="voice-error">${escapeTranscript(latestTranscript.failureMessage)}</div>` : ''}
+            <label style="display:block; margin-top:12px; font-weight:600;">Raw transcript</label>
+            <pre style="white-space:pre-wrap; max-height:220px; overflow:auto; background:#f8fafc; padding:12px; border-radius:8px;">${escapeTranscript(latestTranscript.rawText || 'Awaiting transcription…')}</pre>
+            ${(latestTranscript.rawSpeakerSections || latestTranscript.speakerSections || []).length ? `<label style="display:block; margin-top:12px; font-weight:600;">Speaker sections</label><div class="timeline-meta" style="max-height:180px; overflow:auto;">${(latestTranscript.rawSpeakerSections || latestTranscript.speakerSections).map((section) => `<div><strong>${escapeTranscript(section.speaker)}</strong> · ${Math.round(section.startMs / 1000)}s–${Math.round(section.endMs / 1000)}s<br/>${escapeTranscript(section.text)}</div>`).join('<hr style="border:0;border-top:1px solid #e2e8f0;"/>')}</div>` : '<div class="timeline-meta">Speaker diarization is pending or unavailable for this transcript.</div>'}
+            <label style="display:block; margin-top:12px; font-weight:600;">Cleaned transcript</label>
+            <textarea id="cleanedTranscriptInput" rows="10" style="width:100%; box-sizing:border-box; padding:10px; border:1px solid #cbd5e1; border-radius:8px;" ${latestTranscript.status === 'approved' ? 'readonly' : ''}>${escapeTranscript(latestTranscript.cleanedText || '')}</textarea>
+            <div class="timeline-meta">Cleaning: ${(latestTranscript.cleaningMetadata?.rulesApplied || []).join(', ') || 'Not yet run'}</div>
+            <div class="actions" style="margin-top:10px;">
+              ${latestTranscript.status === 'failed' || latestTranscript.status === 'queued' ? `<button class="secondary small" onclick="App.retryTranscript('${caseItem.id}','${latestTranscript.id}')">Retry transcription</button>` : ''}
+              ${latestTranscript.rawText ? `<button class="secondary small" onclick="App.cleanTranscript('${caseItem.id}','${latestTranscript.id}')">Run cleaning again</button>` : ''}
+              ${latestTranscript.status !== 'approved' && latestTranscript.cleanedText ? `<button class="secondary small" onclick="App.saveCleanedTranscript('${caseItem.id}','${latestTranscript.id}')">Save edit</button><button class="small" onclick="App.approveTranscript('${caseItem.id}','${latestTranscript.id}')">Approve for prompts</button>` : ''}
+              ${latestTranscript.status === 'approved' ? '<span class="status-pill status-pill--success">Approved for prompt processing</span>' : ''}
+            </div>
+          </section>` : `
+          <section id="transcriptReviewPanel" class="detail-card" style="margin-top: 12px;"><h4>Transcript review</h4><p>No transcript exists yet.</p>${latestAudio ? `<button class="secondary small" onclick="App.createTranscriptFromLatestAudio('${caseItem.id}')">Create transcript from latest audio</button>` : 'Upload a voice recording to queue transcription.'}</section>`;
+
+        document.getElementById('caseModalBody').innerHTML = `
+          <div class="detail-summary">
+            <div>
+              <span class="section-kicker">Case workspace</span>
+              <h3 style="margin: 6px 0 4px; font-size: 24px;">${caseItem.patientName}</h3>
+              <div class="page-subtitle">${caseItem.providerName || 'No provider'} · ${caseItem.department || 'No department'}</div>
+            </div>
+            <div style="text-align: right;">
+              ${summaryPills}
+              <div class="page-subtitle">${new Date(caseItem.createdAt).toLocaleString()}</div>
+            </div>
+          </div>
+          <div class="detail-grid">
+            <section class="detail-card">
+              <div class="detail-card-header">
+                <div>
+                  <h4>Visit details</h4>
+                  <p>Patient and appointment context.</p>
+                </div>
+              </div>
+              ${overviewFields}
+            </section>
+            <section class="detail-card">
+              <div class="detail-card-header">
+                <div>
+                  <h4>Athena linkage</h4>
+                  <p>Local case state and Athena patient case mapping.</p>
+                </div>
+              </div>
+              ${athenaFields}
+            </section>
+          </div>
+          <div class="detail-grid" style="margin-top: 12px;">
+            ${audioPanelHtml}
+            ${playbackHtml}
+          </div>
+          ${transcriptPanelHtml}
+          <div class="detail-grid" style="margin-top: 12px;">
+            <section class="detail-card">
+              <div class="detail-card-header">
+                <div>
+                  <h4>Status history</h4>
+                  <p>Every lifecycle transition for this case.</p>
+                </div>
+              </div>
+              <div class="timeline">${historyHtml}</div>
+              ${statusUpdateHtml}
+              ${athenaLifecycleUpdateHtml}
+            </section>
+            <section class="detail-card admin-only">
+              <div class="detail-card-header">
+                <div>
+                  <h4>Admin notes</h4>
+                  <p>Internal comments for the care team.</p>
+                </div>
+              </div>
+              ${adminNoteHtml}
+              <div style="margin-top: 12px;">${noteHtml}</div>
+            </section>
+          </div>
+          <section class="detail-card" style="margin-top: 12px;">
+            <div class="detail-card-header">
+              <div>
+                <h4>Activity log</h4>
+                <p>Audit trail of case events and integrations.</p>
+              </div>
+            </div>
+            <div class="timeline">${activityHtml}</div>
+          </section>
         `;
       }
 
-      async function viewCase(caseId) {
+      async function viewCase(caseId, replaceHistory = false, options = {}) {
+        voiceCaptureSource = options.source === 'mobile' ? 'mobile' : 'dashboard';
+        transcriptReviewMode = options.transcriptReview === true;
+        document.body.classList.toggle('mobile-capture-mode', voiceCaptureSource === 'mobile');
         const res = await fetch(`/api/cases/${caseId}`);
         if (!res.ok) {
           alert('Unable to load case.');
@@ -845,8 +3070,64 @@
         }
         const payload = await res.json();
         openCaseId = caseId;
+        currentCaseId = caseId;
+        payload.case.activity = payload.activity || [];
         renderCaseModal(payload.case);
-        document.getElementById('caseModalOverlay').classList.remove('hidden');
+        document.getElementById('caseDetailPageTitle').textContent = `${payload.case.patientName} case`;
+        document.getElementById('caseDetailPageSubtitle').textContent = `Created ${new Date(payload.case.createdAt).toLocaleString()} · ${payload.case.providerName || 'No provider'} · ${payload.case.status}`;
+        document.getElementById('caseDetailPageBody').innerHTML = document.getElementById('caseModalBody').innerHTML;
+        showCaseDetailPage();
+        updateVoiceRecorderUi('idle');
+        setVoiceStatus('Ready to record.');
+        if (replaceHistory) {
+          window.history.replaceState({ caseId }, '', transcriptReviewMode ? `/cases/${encodeURIComponent(caseId)}/transcript` : voiceCaptureSource === 'mobile' ? `/cases/${encodeURIComponent(caseId)}/record` : `/cases/${encodeURIComponent(caseId)}`);
+        } else {
+          window.history.pushState({ caseId }, '', transcriptReviewMode ? `/cases/${encodeURIComponent(caseId)}/transcript` : voiceCaptureSource === 'mobile' ? `/cases/${encodeURIComponent(caseId)}/record` : `/cases/${encodeURIComponent(caseId)}`);
+        }
+        if (transcriptReviewMode) document.getElementById('transcriptReviewPanel')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        const latestTranscript = (payload.case.transcripts || []).at(-1);
+        if (latestTranscript && ['queued', 'transcribing', 'diarizing', 'cleaning'].includes(latestTranscript.status)) {
+          pollTranscriptStatus(caseId, latestTranscript.id);
+        }
+      }
+
+      function openMobileVoiceCapture(caseId) {
+        viewCase(caseId, false, { source: 'mobile' });
+      }
+
+      function openTranscriptReview(caseId) { viewCase(caseId, false, { transcriptReview: true }); }
+
+      async function retryTranscript(caseId, transcriptId) { await startTranscriptProcessing(caseId, transcriptId); await viewCase(caseId, true, { transcriptReview: true }); }
+      async function createTranscriptFromLatestAudio(caseId) { await startTranscriptProcessing(caseId, null); await viewCase(caseId, true, { transcriptReview: true }); }
+      async function cleanTranscript(caseId, transcriptId) {
+        const res = await fetch(`/api/cases/${caseId}/transcripts/${transcriptId}/clean`, { method: 'POST', credentials: 'same-origin' });
+        const payload = await res.json(); if (!res.ok) return alert(payload.message || 'Unable to clean transcript.');
+        await viewCase(caseId, true, { transcriptReview: true });
+      }
+      async function saveCleanedTranscript(caseId, transcriptId) {
+        const cleanedText = document.getElementById('cleanedTranscriptInput').value;
+        const res = await fetch(`/api/cases/${caseId}/transcripts/${transcriptId}`, { method: 'PATCH', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ cleanedText }) });
+        const payload = await res.json(); if (!res.ok) return alert(payload.message || 'Unable to save transcript.');
+        await viewCase(caseId, true, { transcriptReview: true });
+      }
+      async function approveTranscript(caseId, transcriptId) {
+        const res = await fetch(`/api/cases/${caseId}/transcripts/${transcriptId}/approve`, { method: 'POST', credentials: 'same-origin' });
+        const payload = await res.json(); if (!res.ok) return alert(payload.message || 'Unable to approve transcript.');
+        await viewCase(caseId, true, { transcriptReview: true });
+      }
+
+      function backToDashboard() {
+        if (audioRecorder || audioPendingUpload) {
+          const proceed = window.confirm('A voice recording is in progress or waiting to upload. Leave this case anyway?');
+          if (!proceed) return;
+        }
+        openCaseId = null;
+        currentCaseId = null;
+        voiceCaptureSource = 'dashboard';
+        document.body.classList.remove('mobile-capture-mode');
+        window.history.pushState({}, '', '/');
+        showDashboardPage();
+        showTab('cases');
       }
 
       async function updateCaseStatusFromModal(caseId) {
@@ -862,7 +3143,55 @@
           return;
         }
         renderCaseModal(payload.case);
+        document.getElementById('caseDetailPageBody').innerHTML = document.getElementById('caseModalBody').innerHTML;
         await loadCases();
+        await loadAdminInbox();
+        if (getCaseRouteId() === caseId) {
+          document.getElementById('caseDetailPageTitle').textContent = `${payload.case.patientName} case`;
+          document.getElementById('caseDetailPageSubtitle').textContent = `Created ${new Date(payload.case.createdAt).toLocaleString()} · ${payload.case.providerName || 'No provider'} · ${payload.case.status}`;
+        }
+      }
+
+      async function updateAthenaLifecycleFromModal(caseId) {
+        const status = document.getElementById('athenaLifecycleSelect').value;
+        const res = await fetch(`/api/cases/${caseId}/athena-lifecycle`, {
+          method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status }),
+        });
+        const payload = await res.json();
+        if (!res.ok) { alert(payload.message || 'Unable to update Athena lifecycle.'); return; }
+        const refreshed = await fetch(`/api/cases/${caseId}`);
+        const detail = await refreshed.json();
+        detail.case.activity = detail.activity || [];
+        renderCaseModal(detail.case);
+        document.getElementById('caseDetailPageBody').innerHTML = document.getElementById('caseModalBody').innerHTML;
+        await loadCases(); await loadAdminInbox();
+      }
+
+      async function addCaseNote(caseId) {
+        const noteInput = document.querySelector('#caseModalOverlay:not(.hidden) #caseNoteInput, #caseDetailPage:not(.hidden) #caseNoteInput');
+        const noteText = noteInput ? noteInput.value : '';
+        if (!noteText.trim()) {
+          alert('Please enter a note before saving.');
+          return;
+        }
+        try {
+          const res = await sfetch(`/api/cases/${caseId}/notes`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ note: noteText }),
+          });
+          const payload = await res.json().catch(() => ({}));
+          if (!res.ok) {
+            alert(payload.message || 'Unable to save note.');
+            return;
+          }
+          renderCaseModal(payload.case);
+          document.getElementById('caseDetailPageBody').innerHTML = document.getElementById('caseModalBody').innerHTML;
+          await loadCases();
+          await loadAdminInbox();
+        } catch (error) {
+          alert('Unable to reach Scribel. Please try saving the note again.');
+        }
       }
 
       function closeCaseModal() {
@@ -878,10 +3207,14 @@
 
       async function logout() {
         await fetch('/auth/logout', { method: 'POST' });
+        isAuthenticated = false;
         setAuthStatus('Not signed in', '');
         setSignInEnabled(true);
+        setProtectedUiEnabled(false);
         document.getElementById('authMessage').textContent = '';
-        document.getElementById('dashboard').classList.add('hidden');
+        clearVoiceRecorderState();
+        audioPendingUpload = null;
+        currentCaseId = null;
         calendarLoaded = false;
         calendarAppointments = [];
         calendarAnchorDate = null;
@@ -894,7 +3227,15 @@
         document.getElementById('calendarModeDayBtn').classList.remove('active');
       }
 
-      window.addEventListener('DOMContentLoaded', checkAuth);
+      window.addEventListener('DOMContentLoaded', () => {
+        bindPatientIntakeDraftListeners();
+        checkAuth();
+      });
+      window.addEventListener('popstate', () => {
+        if (isAuthenticated) {
+          showRoute();
+        }
+      });
 
       // Everything above is private to this closure. Only what markup actually needs
       // to invoke (onclick/onchange handlers) is exposed, and only through this one
@@ -909,6 +3250,10 @@
         showTab,
         loadAppointments,
         loadCases,
+        loadAdminInbox,
+        syncCaseFeed,
+        loadPracticeMembers,
+        updatePracticeMember,
         calendarNavigate,
         calendarToday,
         setCalendarViewMode,
@@ -916,15 +3261,49 @@
         calendarJumpToDate,
         closeCaseModalIfBackdrop,
         closeCaseModal,
+        backToDashboard,
+        openPatientIntake,
+        openPatientIntakeForCurrentCase,
+        openPatientIntakeForAppointment,
+        clearPatientIntake,
+        clearPatientIntakeContext,
+        searchIntakeDuplicates,
+        submitPatientIntake,
+        createIntakeAnyway,
+        linkSelectedPatientToContext,
+        selectExistingAthenaPatient,
         closeAppointmentDetailIfBackdrop,
         closeAppointmentDetail,
         viewCase,
+        openMobileVoiceCapture,
+        openTranscriptReview,
+        retryTranscript,
+        createTranscriptFromLatestAudio,
+        cleanTranscript,
+        saveCleanedTranscript,
+        approveTranscript,
+        startVoiceCapture,
+        selectAudioFile,
+        pauseVoiceCapture,
+        resumeVoiceCapture,
+        stopVoiceCapture,
+        retryVoiceUpload,
+        discardVoiceRecording,
         createCaseFromAppointment,
         showAppointmentDetail,
         showSlotList,
         updateCaseStatusFromModal,
+        updateAthenaLifecycleFromModal,
+        addCaseNote,
+        syncFromAthena,
         scrollToCases,
         scrollToAppointments,
+        loadManualCaseDepartments,
+        loadManualProviders,
+        resolveManualPatientName,
+        loadManualVisitType,
+        onManualDepartmentChange,
+        createManualCase,
       };
     })();
     </script>

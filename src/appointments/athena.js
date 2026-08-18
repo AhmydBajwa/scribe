@@ -25,6 +25,44 @@ const MOCK_DEPARTMENT_NAMES = new Map([
   ['2', 'Cardiology'],
   ['3', 'Dermatology'],
 ]);
+const MOCK_PATIENT_RECORDS = [
+  {
+    patientid: '9001',
+    firstname: 'Alicia',
+    lastname: 'Nguyen',
+    dob: '1990-01-15',
+    sex: 'F',
+    email: 'alicia.nguyen@example.com',
+    homephone: '555-900-1001',
+    address1: '100 Main St',
+    city: 'Columbus',
+    state: 'OH',
+    zip: '43215',
+    payername: 'Northwind Health',
+    memberid: 'NW-1001',
+    groupnumber: 'GRP-100',
+    emergencycontactname: 'Sam Nguyen',
+    emergencycontactphone: '555-900-1101',
+  },
+  {
+    patientid: '9002',
+    firstname: 'Elijah',
+    lastname: 'Brooks',
+    dob: '1984-08-22',
+    sex: 'M',
+    email: 'elijah.brooks@example.com',
+    homephone: '555-900-1002',
+    address1: '200 Oak Ave',
+    city: 'Columbus',
+    state: 'OH',
+    zip: '43215',
+    payername: 'Northwind Health',
+    memberid: 'NW-1002',
+    groupnumber: 'GRP-200',
+    emergencycontactname: 'Tara Brooks',
+    emergencycontactphone: '555-900-1102',
+  },
+];
 
 const athenaSeedAppointments = [
   {
@@ -65,16 +103,45 @@ const athenaSeedAppointments = [
 // Athena department/provider/patient IDs are only unique WITHIN a practice, so every
 // cross-request cache below is keyed by `${practiceId}:${id}`, never by the bare id.
 let tokenCache = null;
+let tokenRequestInFlight = null;
 let departmentRecordCache = new Map(); // "practiceId:departmentId" -> department record
 let providerRecordCache = new Map(); // "practiceId:providerId" -> provider record
 let departmentsLoadedForPractice = new Set();
 let providersLoadedForPractice = new Set();
+let departmentLoadRequests = new Map();
+let providerLoadRequests = new Map();
 let patientNameCache = new Map(); // "practiceId:patientId" -> name
 let appointmentDayCache = new Map(); // "practiceId:departmentId" -> Map<isoDate, rawAppointment[]>
 let mockAppointmentsCache = null;
 let lastAthenaError = null;
 let appointmentCache = new Map();
 let lastSyncedLive = false;
+let athenaRetryAfter = 0;
+let lastAthenaFailureMessage = null;
+
+function getAthenaFailureCooldownMs() {
+  const configured = Number(process.env.ATHENA_FAILURE_COOLDOWN_MS || 60000);
+  return Number.isFinite(configured) && configured >= 0 ? configured : 60000;
+}
+
+function recordAthenaFailure(error) {
+  const message = error?.message || String(error || 'Athena sandbox request failed.');
+  lastAthenaError = message;
+  lastAthenaFailureMessage = message;
+  athenaRetryAfter = Date.now() + getAthenaFailureCooldownMs();
+}
+
+function clearAthenaFailure() {
+  athenaRetryAfter = 0;
+  lastAthenaFailureMessage = null;
+  lastAthenaError = null;
+}
+
+function getAthenaCooldownMessage() {
+  if (Date.now() >= athenaRetryAfter) return null;
+  const seconds = Math.max(1, Math.ceil((athenaRetryAfter - Date.now()) / 1000));
+  return `Athena sandbox is temporarily paused after a connection failure. Retrying in about ${seconds} seconds.${lastAthenaFailureMessage ? ` Last error: ${lastAthenaFailureMessage}` : ''}`;
+}
 
 function compositeKey(practiceId, id) {
   return `${practiceId}:${id}`;
@@ -132,6 +199,10 @@ async function getAthenaAccessToken({ baseUrl, clientId, clientSecret, scope } =
     return tokenCache.accessToken;
   }
 
+  if (tokenRequestInFlight) {
+    return tokenRequestInFlight;
+  }
+
   const cleanBaseUrl = normalizeBaseUrl(baseUrl);
   const tokenUrl = `https://${cleanBaseUrl}/oauth2/v1/token`;
   const formBody = new URLSearchParams({
@@ -158,35 +229,46 @@ async function getAthenaAccessToken({ baseUrl, clientId, clientSecret, scope } =
     });
 
     if (!response.ok) {
-      const payloadText = await response.text();
-      throw new Error(`Athena token request failed with status ${response.status}: ${payloadText}`);
+      const payloadText = typeof response.text === 'function' ? await response.text() : '';
+      const error = new Error(`Athena token request failed with status ${response.status}${payloadText ? `: ${payloadText}` : ''}`);
+      error.status = response.status;
+      throw error;
     }
 
     return response.json();
   };
 
-  try {
-    let payload;
+  tokenRequestInFlight = (async () => {
     try {
-      payload = await tryRequest();
+      let payload;
+      try {
+        payload = await tryRequest();
+      } catch (error) {
+        // A network failure cannot be fixed by resending the same request with
+        // Basic authentication. Only retry when Athena actually rejected auth.
+        if (![400, 401, 403].includes(error.status)) throw error;
+        const basicAuthHeader = `Basic ${Buffer.from(`${clientId}:${clientSecret}`).toString('base64')}`;
+        payload = await tryRequest(basicAuthHeader);
+      }
+
+      if (!payload.access_token) {
+        throw new Error('Athena token response did not include an access token.');
+      }
+
+      tokenCache = {
+        accessToken: payload.access_token,
+        expiresAt: Date.now() + Number(payload.expires_in || 3600) * 1000,
+      };
+      return tokenCache.accessToken;
     } catch (error) {
-      const basicAuthHeader = `Basic ${Buffer.from(`${clientId}:${clientSecret}`).toString('base64')}`;
-      payload = await tryRequest(basicAuthHeader);
-    }
-
-    if (!payload.access_token) {
+      recordAthenaFailure(error);
       return null;
+    } finally {
+      tokenRequestInFlight = null;
     }
+  })();
 
-    tokenCache = {
-      accessToken: payload.access_token,
-      expiresAt: Date.now() + Number(payload.expires_in || 3600) * 1000,
-    };
-    return tokenCache.accessToken;
-  } catch (error) {
-    lastAthenaError = error.message;
-    return null;
-  }
+  return tokenRequestInFlight;
 }
 
 async function getAthenaContext() {
@@ -201,11 +283,18 @@ async function getAthenaContext() {
     return null;
   }
 
+  const cooldownMessage = getAthenaCooldownMessage();
+  if (cooldownMessage) {
+    lastAthenaError = cooldownMessage;
+    return null;
+  }
+
   const accessToken = await getAthenaAccessToken({ baseUrl, clientId, clientSecret, scope });
   if (!accessToken) {
     return null;
   }
 
+  clearAthenaFailure();
   return { baseUrl, accessToken, practiceId };
 }
 
@@ -217,26 +306,39 @@ async function ensureDepartmentsLoaded({ baseUrl, accessToken, practiceId }) {
     return;
   }
 
-  const cleanBaseUrl = normalizeBaseUrl(baseUrl);
-  const response = await fetch(`https://${cleanBaseUrl}/v1/${practiceId}/departments?limit=200`, {
-    headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/json' },
-  });
-
-  if (!response.ok) {
-    throw new Error(`Athena departments request failed with status ${response.status}`);
+  if (departmentLoadRequests.has(practiceId)) {
+    return departmentLoadRequests.get(practiceId);
   }
 
-  const payload = await response.json();
-  (payload.departments || []).forEach((dept) => {
-    departmentRecordCache.set(compositeKey(practiceId, dept.departmentid), {
-      id: String(dept.departmentid),
-      practiceId: String(practiceId),
-      name: dept.name,
-      address: dept.address || null,
-      phone: dept.phone || null,
+  const request = (async () => {
+    const cleanBaseUrl = normalizeBaseUrl(baseUrl);
+    const response = await fetch(`https://${cleanBaseUrl}/v1/${practiceId}/departments?limit=200`, {
+      headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/json' },
     });
-  });
-  departmentsLoadedForPractice.add(practiceId);
+
+    if (!response.ok) {
+      throw new Error(`Athena departments request failed with status ${response.status}`);
+    }
+
+    const payload = await response.json();
+    (payload.departments || []).forEach((dept) => {
+      departmentRecordCache.set(compositeKey(practiceId, dept.departmentid), {
+        id: String(dept.departmentid),
+        practiceId: String(practiceId),
+        name: dept.name,
+        address: dept.address || null,
+        phone: dept.phone || null,
+      });
+    });
+    departmentsLoadedForPractice.add(practiceId);
+  })();
+
+  departmentLoadRequests.set(practiceId, request);
+  try {
+    await request;
+  } finally {
+    departmentLoadRequests.delete(practiceId);
+  }
 }
 
 async function ensureProvidersLoaded({ baseUrl, accessToken, practiceId }) {
@@ -244,30 +346,43 @@ async function ensureProvidersLoaded({ baseUrl, accessToken, practiceId }) {
     return;
   }
 
-  const cleanBaseUrl = normalizeBaseUrl(baseUrl);
-  const response = await fetch(`https://${cleanBaseUrl}/v1/${practiceId}/providers?limit=200`, {
-    headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/json' },
-  });
-
-  if (!response.ok) {
-    throw new Error(`Athena providers request failed with status ${response.status}`);
+  if (providerLoadRequests.has(practiceId)) {
+    return providerLoadRequests.get(practiceId);
   }
 
-  const payload = await response.json();
-  (payload.providers || []).forEach((provider) => {
-    providerRecordCache.set(compositeKey(practiceId, provider.providerid), {
-      id: String(provider.providerid),
-      practiceId: String(practiceId),
-      displayName: provider.displayname || `${provider.firstname || ''} ${provider.lastname || ''}`.trim(),
-      firstName: provider.firstname || null,
-      lastName: provider.lastname || null,
-      specialty: provider.specialty || null,
-      npi: provider.npi || null,
-      homeDepartmentName: provider.homedepartment || null,
-      entityType: provider.entitytype || null,
+  const request = (async () => {
+    const cleanBaseUrl = normalizeBaseUrl(baseUrl);
+    const response = await fetch(`https://${cleanBaseUrl}/v1/${practiceId}/providers?limit=200`, {
+      headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/json' },
     });
-  });
-  providersLoadedForPractice.add(practiceId);
+
+    if (!response.ok) {
+      throw new Error(`Athena providers request failed with status ${response.status}`);
+    }
+
+    const payload = await response.json();
+    (payload.providers || []).forEach((provider) => {
+      providerRecordCache.set(compositeKey(practiceId, provider.providerid), {
+        id: String(provider.providerid),
+        practiceId: String(practiceId),
+        displayName: provider.displayname || `${provider.firstname || ''} ${provider.lastname || ''}`.trim(),
+        firstName: provider.firstname || null,
+        lastName: provider.lastname || null,
+        specialty: provider.specialty || null,
+        npi: provider.npi || null,
+        homeDepartmentName: provider.homedepartment || null,
+        entityType: provider.entitytype || null,
+      });
+    });
+    providersLoadedForPractice.add(practiceId);
+  })();
+
+  providerLoadRequests.set(practiceId, request);
+  try {
+    await request;
+  } finally {
+    providerLoadRequests.delete(practiceId);
+  }
 }
 
 async function getDepartmentRecords({ baseUrl, accessToken, practiceId }) {
@@ -342,6 +457,114 @@ function extractAthenaDocumentRows(payload) {
   return payload.patientcases || payload.documents || payload.items || payload.results || payload.data || [];
 }
 
+function extractAthenaErrorMessage(responseStatus, payloadText, fallbackMessage) {
+  const defaultMessage = fallbackMessage || `Athena request failed with status ${responseStatus}`;
+  if (!payloadText) {
+    return defaultMessage;
+  }
+
+  try {
+    const parsed = JSON.parse(payloadText);
+    const parts = [
+      parsed.detailedmessage,
+      parsed.message,
+      parsed.error_description,
+      parsed.error,
+      parsed.missingfields ? `Missing fields: ${Array.isArray(parsed.missingfields) ? parsed.missingfields.join(', ') : parsed.missingfields}` : null,
+      parsed.missingfield ? `Missing field: ${parsed.missingfield}` : null,
+    ].filter(Boolean);
+    if (parts.length) {
+      return `Athena request failed with status ${responseStatus}: ${parts.join(' | ')}`;
+    }
+  } catch (error) {
+    // Not JSON, fall through.
+  }
+
+  return `Athena request failed with status ${responseStatus}: ${payloadText}`;
+}
+
+function normalizeAthenaPatient(raw) {
+  if (!raw) return null;
+  const patientId = raw.patientid != null ? String(raw.patientid) : raw.id != null ? String(raw.id) : null;
+  const firstName = raw.firstname || raw.firstName || null;
+  const lastName = raw.lastname || raw.lastName || null;
+  const fullName = [firstName, lastName].filter(Boolean).join(' ').trim() || raw.patientfullname || raw.patientname || `Patient ${patientId || ''}`.trim();
+
+  return {
+    id: patientId,
+    patientId,
+    firstName,
+    lastName,
+    fullName,
+    dob: raw.dob || raw.dateofbirth || raw.birthdate || null,
+    sex: raw.sex || raw.gender || null,
+    address1: raw.address1 || raw.address || null,
+    address2: raw.address2 || null,
+    city: raw.city || null,
+    state: raw.state || null,
+    zip: raw.zip || raw.zipcode || null,
+    phone: raw.homephone || raw.phone || raw.mobilephone || null,
+    email: raw.email || null,
+    payerName: raw.payername || raw.insurancepayer || raw.primarypayer || null,
+    memberId: raw.memberid || raw.member_id || null,
+    groupNumber: raw.groupnumber || raw.group_number || null,
+    emergencyContactName: raw.emergencycontactname || raw.emergency_contact_name || null,
+    emergencyContactPhone: raw.emergencycontactphone || raw.emergency_contact_phone || null,
+    raw,
+  };
+}
+
+function normalizeAthenaPatientList(payload) {
+  const rows = Array.isArray(payload) ? payload : payload?.patients || payload?.items || payload?.results || payload?.data || [];
+  return rows.map(normalizeAthenaPatient).filter(Boolean);
+}
+
+function buildAthenaPatientSearchParams({ firstName, lastName, dob, phone, email, memberId } = {}) {
+  const params = new URLSearchParams();
+  if (firstName) params.set('firstname', String(firstName).trim());
+  if (lastName) params.set('lastname', String(lastName).trim());
+  if (dob) params.set('dob', String(dob).trim());
+  if (phone) params.set('phone', String(phone).trim());
+  if (email) params.set('email', String(email).trim());
+  if (memberId) params.set('memberid', String(memberId).trim());
+  params.set('limit', '20');
+  return params;
+}
+
+function buildAthenaPatientCreateParams(patient) {
+  const params = new URLSearchParams();
+  const setIfPresent = (key, value) => {
+    if (value != null && String(value).trim() !== '') {
+      params.set(key, String(value).trim());
+    }
+  };
+
+  setIfPresent('firstname', patient.firstName);
+  setIfPresent('lastname', patient.lastName);
+  setIfPresent('dob', patient.dob);
+  setIfPresent('sex', patient.sex);
+  setIfPresent('address1', patient.address1);
+  setIfPresent('address2', patient.address2);
+  setIfPresent('city', patient.city);
+  setIfPresent('state', patient.state);
+  setIfPresent('zip', patient.zip);
+  setIfPresent('phone', patient.phone);
+  setIfPresent('homephone', patient.phone);
+  setIfPresent('email', patient.email);
+  setIfPresent('payername', patient.payerName);
+  setIfPresent('insurancepayer', patient.payerName);
+  setIfPresent('memberid', patient.memberId);
+  setIfPresent('groupnumber', patient.groupNumber);
+  setIfPresent('emergencycontactname', patient.emergencyContactName);
+  setIfPresent('emergencycontactphone', patient.emergencyContactPhone);
+  setIfPresent('notes', patient.notes);
+  return params;
+}
+
+function getMockPatientRecords() {
+  return MOCK_PATIENT_RECORDS.map(normalizeAthenaPatient);
+}
+
 function normalizeAthenaPatientCase(raw) {
   const patientCaseId = raw.patientcaseid != null ? String(raw.patientcaseid) : raw.documentid != null ? String(raw.documentid) : raw.id != null ? String(raw.id) : null;
   return {
@@ -394,14 +617,375 @@ async function fetchAthenaPatientCases({ baseUrl, accessToken, practiceId, patie
   return [];
 }
 
-async function findAthenaPatientCaseForAppointment({ appointmentId, patientId, departmentId } = {}) {
-  if (!appointmentId || patientId == null || departmentId == null) {
+async function getAthenaPatientById(patientId) {
+  if (!patientId) {
     return null;
+  }
+
+  if (process.env.USE_MOCK_ATHENA === 'true') {
+    return normalizeAthenaPatient(MOCK_PATIENT_RECORDS.find((patient) => String(patient.patientid) === String(patientId))) || {
+      id: String(patientId),
+      firstName: null,
+      lastName: null,
+      fullName: `Patient ${patientId}`,
+      raw: null,
+    };
+  }
+
+  const context = await getAthenaContext();
+  if (!context) {
+    return null;
+  }
+
+  const cleanBaseUrl = normalizeBaseUrl(context.baseUrl);
+  const response = await fetch(`https://${cleanBaseUrl}/v1/${context.practiceId}/patients/${patientId}`, {
+    headers: { Authorization: `Bearer ${context.accessToken}`, Accept: 'application/json' },
+  });
+
+  if (!response.ok) {
+    return null;
+  }
+
+  const payload = await response.json();
+  const record = Array.isArray(payload) ? payload[0] : payload;
+  if (!record) {
+    return null;
+  }
+
+  return normalizeAthenaPatient(record) || {
+    id: String(record.patientid || record.id || patientId),
+    firstName: record.firstname || null,
+    lastName: record.lastname || null,
+    fullName: [record.firstname, record.lastname].filter(Boolean).join(' ').trim() || record.patientfullname || record.patientname || `Patient ${patientId}`,
+    raw: record,
+  };
+}
+
+async function searchAthenaPatients(criteria = {}) {
+  const normalizedCriteria = {
+    firstName: criteria.firstName || criteria.firstname || null,
+    lastName: criteria.lastName || criteria.lastname || null,
+    dob: criteria.dob || criteria.dateOfBirth || criteria.dateofbirth || null,
+    phone: criteria.phone || criteria.homephone || criteria.mobilephone || null,
+    email: criteria.email || null,
+    memberId: criteria.memberId || criteria.memberid || null,
+  };
+
+  if (process.env.USE_MOCK_ATHENA === 'true') {
+    return getMockPatientRecords().filter((patient) => {
+      const matchesFirst = !normalizedCriteria.firstName || (patient.firstName || '').toLowerCase().includes(normalizedCriteria.firstName.toLowerCase());
+      const matchesLast = !normalizedCriteria.lastName || (patient.lastName || '').toLowerCase().includes(normalizedCriteria.lastName.toLowerCase());
+      const matchesDob = !normalizedCriteria.dob || patient.dob === normalizedCriteria.dob;
+      const matchesPhone = !normalizedCriteria.phone || String(patient.phone || '').includes(String(normalizedCriteria.phone).replace(/\D/g, ''));
+      const matchesEmail = !normalizedCriteria.email || String(patient.email || '').toLowerCase().includes(String(normalizedCriteria.email).toLowerCase());
+      const matchesMemberId = !normalizedCriteria.memberId || String(patient.memberId || '').toLowerCase().includes(String(normalizedCriteria.memberId).toLowerCase());
+      return matchesFirst && matchesLast && matchesDob && matchesPhone && matchesEmail && matchesMemberId;
+    });
+  }
+
+  const context = await getAthenaContext();
+  if (!context) {
+    return [];
+  }
+
+  const cleanBaseUrl = normalizeBaseUrl(context.baseUrl);
+  const searchParams = buildAthenaPatientSearchParams(normalizedCriteria).toString();
+  const candidateUrls = [
+    `https://${cleanBaseUrl}/v1/${context.practiceId}/patients?${searchParams}`,
+    `https://${cleanBaseUrl}/v1/${context.practiceId}/patients/search?${searchParams}`,
+  ];
+
+  for (const candidateUrl of candidateUrls) {
+    try {
+      const response = await fetch(candidateUrl, {
+        headers: { Authorization: `Bearer ${context.accessToken}`, Accept: 'application/json' },
+      });
+
+      if (!response.ok) {
+        const payloadText = await response.text().catch(() => '');
+        lastAthenaError = extractAthenaErrorMessage(response.status, payloadText, 'Unable to search Athena patients.');
+        continue;
+      }
+
+      const payload = await response.json();
+      lastAthenaError = null;
+      return normalizeAthenaPatientList(payload);
+    } catch (error) {
+      lastAthenaError = error.message;
+    }
+  }
+
+  return [];
+}
+
+async function createAthenaPatient(patient = {}) {
+  if (!patient.firstName || !patient.lastName || !patient.dob || !patient.sex || !patient.phone || !patient.address1 || !patient.city || !patient.state || !patient.zip || !patient.payerName) {
+    throw new Error('firstName, lastName, dob, sex, phone, address1, city, state, zip, and payerName are required to create an Athena patient.');
+  }
+
+  if (process.env.USE_MOCK_ATHENA === 'true') {
+    return normalizeAthenaPatient({
+      patientid: `mock-${Date.now()}`,
+      firstname: patient.firstName,
+      lastname: patient.lastName,
+      dob: patient.dob,
+      sex: patient.sex,
+      address1: patient.address1,
+      address2: patient.address2 || null,
+      city: patient.city,
+      state: patient.state,
+      zip: patient.zip,
+      phone: patient.phone,
+      email: patient.email || null,
+      payername: patient.payerName,
+      memberid: patient.memberId || null,
+      groupnumber: patient.groupNumber || null,
+      emergencycontactname: patient.emergencyContactName || null,
+      emergencycontactphone: patient.emergencyContactPhone || null,
+    });
+  }
+
+  const context = await getAthenaContext();
+  if (!context) {
+    return null;
+  }
+
+  const cleanBaseUrl = normalizeBaseUrl(context.baseUrl);
+  const body = buildAthenaPatientCreateParams(patient).toString();
+  const candidateUrls = [
+    `https://${cleanBaseUrl}/v1/${context.practiceId}/patients`,
+    `https://${cleanBaseUrl}/v1/${context.practiceId}/patients/create`,
+  ];
+
+  let lastError = null;
+  for (const candidateUrl of candidateUrls) {
+    try {
+      const response = await fetch(candidateUrl, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${context.accessToken}`,
+          Accept: 'application/json',
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body,
+      });
+
+      if (!response.ok) {
+        const payloadText = await response.text().catch(() => '');
+        lastError = extractAthenaErrorMessage(response.status, payloadText, 'Unable to create Athena patient.');
+        continue;
+      }
+
+      const payload = await response.json();
+      const normalized = normalizeAthenaPatient(Array.isArray(payload) ? payload[0] : payload);
+      if (normalized && normalized.id) {
+        lastAthenaError = null;
+        return normalized;
+      }
+      lastError = 'Athena patient create response did not include a patient id.';
+    } catch (error) {
+      lastError = error.message;
+    }
+  }
+
+  lastAthenaError = lastError;
+  throw new Error(lastError || 'Unable to create Athena patient.');
+}
+
+async function createAthenaPatientCase({ patientId, departmentId, providerId, subject, description, appointmentId, documentsubclass = 'PATIENTCASE_OTHER' } = {}) {
+  if (!patientId || !departmentId || !providerId || !subject) {
+    throw new Error('patientId, departmentId, providerId, and subject are required to create an Athena patient case.');
   }
 
   if (process.env.USE_MOCK_ATHENA === 'true') {
     return null;
   }
+
+  const context = await getAthenaContext();
+  if (!context) {
+    return null;
+  }
+
+  const cleanBaseUrl = normalizeBaseUrl(context.baseUrl);
+  const formBody = new URLSearchParams({
+    documentclass: 'PATIENTCASE',
+    departmentid: String(departmentId),
+    providerid: String(providerId),
+    subject: String(subject),
+    documentsubclass: String(documentsubclass),
+  });
+
+  if (description) {
+    formBody.set('description', String(description));
+  }
+
+  if (appointmentId) {
+    formBody.set('appointmentid', String(appointmentId));
+  }
+
+  const candidateUrls = [
+    `https://${cleanBaseUrl}/v1/${context.practiceId}/patients/${patientId}/documents/patientcase`,
+    `https://${cleanBaseUrl}/v1/${context.practiceId}/patients/${patientId}/documents?documentclass=PATIENTCASE`,
+  ];
+
+  for (const candidateUrl of candidateUrls) {
+    try {
+      const response = await fetch(candidateUrl, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${context.accessToken}`,
+          Accept: 'application/json',
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: formBody.toString(),
+      });
+
+      if (!response.ok) {
+        continue;
+      }
+
+      const payload = await response.json();
+      const rows = extractAthenaDocumentRows(payload);
+      if (rows.length > 0) {
+        return normalizeAthenaPatientCase(rows[0]);
+      }
+
+      const normalized = normalizeAthenaPatientCase(payload);
+      if (normalized && normalized.id) {
+        return normalized;
+      }
+    } catch (error) {
+      continue;
+    }
+  }
+
+  return null;
+}
+
+// Athena action notes are append-only. We never use the mutable internal-note
+// field, because it would overwrite a staff member's previous note.
+async function appendAthenaPatientCaseActionNote({ patientId, patientCaseId, departmentId, note } = {}) {
+  if (!patientId || !patientCaseId || !note) throw new Error('patientId, patientCaseId, and note are required.');
+  if (process.env.USE_MOCK_ATHENA === 'true') return { id: `mock-action-${Date.now()}`, note: String(note) };
+  const context = await getAthenaContext();
+  if (!context) throw new Error('Athena credentials are unavailable.');
+  const baseUrl = normalizeBaseUrl(context.baseUrl);
+  const body = new URLSearchParams({ note: String(note) });
+  if (departmentId) body.set('departmentid', String(departmentId));
+  const candidates = [
+    `https://${baseUrl}/v1/${context.practiceId}/patients/${patientId}/documents/patientcase/${patientCaseId}/actions`,
+    `https://${baseUrl}/v1/${context.practiceId}/patients/${patientId}/documents/${patientCaseId}/actions`,
+  ];
+  let lastError = 'Athena did not accept the case action note.';
+  for (const url of candidates) {
+    try {
+      const response = await fetch(url, { method: 'POST', headers: { Authorization: `Bearer ${context.accessToken}`, Accept: 'application/json', 'Content-Type': 'application/x-www-form-urlencoded' }, body: body.toString() });
+      if (response.ok) return await response.json().catch(() => ({ note: String(note) }));
+      lastError = `Athena action-note request failed with status ${response.status}`;
+    } catch (error) { lastError = error.message; }
+  }
+  throw new Error(lastError);
+}
+
+async function getAthenaProviderById(providerId) {
+  if (!providerId) {
+    return null;
+  }
+
+  const context = await getAthenaContext();
+  if (!context) {
+    return null;
+  }
+
+  const providers = await getProviderRecords(context);
+  return providers.find((provider) => String(provider.id) === String(providerId)) || null;
+}
+
+async function getAthenaDepartmentById(departmentId) {
+  if (!departmentId) {
+    return null;
+  }
+
+  const context = await getAthenaContext();
+  if (!context) {
+    return null;
+  }
+
+  const departments = await getDepartmentRecords(context);
+  return departments.find((department) => String(department.id) === String(departmentId)) || null;
+}
+
+async function createAthenaPatientCase({ patientId, departmentId, providerId, subject, description, appointmentId, documentsubclass = 'PATIENTCASE_OTHER' } = {}) {
+  if (!patientId || !departmentId || !providerId || !subject) {
+    throw new Error('patientId, departmentId, providerId, and subject are required to create an Athena patient case.');
+  }
+
+  if (process.env.USE_MOCK_ATHENA === 'true') {
+    return null;
+  }
+
+  const context = await getAthenaContext();
+  if (!context) {
+    return null;
+  }
+
+  const cleanBaseUrl = normalizeBaseUrl(context.baseUrl);
+  const formBody = new URLSearchParams({
+    documentclass: 'PATIENTCASE',
+    departmentid: String(departmentId),
+    providerid: String(providerId),
+    subject: String(subject),
+    documentsubclass: String(documentsubclass),
+  });
+
+  if (description) {
+    formBody.set('description', String(description));
+  }
+
+  if (appointmentId) {
+    formBody.set('appointmentid', String(appointmentId));
+  }
+
+  const candidateUrls = [
+    `https://${cleanBaseUrl}/v1/${context.practiceId}/patients/${patientId}/documents/patientcase`,
+    `https://${cleanBaseUrl}/v1/${context.practiceId}/patients/${patientId}/documents?documentclass=PATIENTCASE`,
+  ];
+
+  for (const candidateUrl of candidateUrls) {
+    try {
+      const response = await fetch(candidateUrl, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${context.accessToken}`,
+          Accept: 'application/json',
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: formBody.toString(),
+      });
+
+      if (!response.ok) {
+        continue;
+      }
+
+      const payload = await response.json();
+      const rows = extractAthenaDocumentRows(payload);
+      if (rows.length > 0) {
+        return normalizeAthenaPatientCase(rows[0]);
+      }
+
+      const normalized = normalizeAthenaPatientCase(payload);
+      if (normalized && normalized.id) {
+        return normalized;
+      }
+    } catch (error) {
+      continue;
+    }
+  }
+
+  return null;
+}
+
+async function findAthenaPatientCaseForAppointment({ appointmentId, patientId, departmentId } = {}) {
 
   const context = await getAthenaContext();
   if (!context) {
@@ -595,16 +1179,17 @@ function getMockAppointments() {
   return mockAppointmentsCache;
 }
 
-function filterAppointments(appointments, { date, dateFrom, dateTo, provider, patient, status, departmentId } = {}) {
+function filterAppointments(appointments, { date, dateFrom, dateTo, provider, patient, patientId, status, departmentId } = {}) {
   return appointments.filter((appointment) => {
     const matchesDate = !date || appointment.date === date;
     const matchesDateFrom = !dateFrom || appointment.date >= dateFrom;
     const matchesDateTo = !dateTo || appointment.date <= dateTo;
     const matchesProvider = !provider || appointment.provider.toLowerCase().includes(provider.toLowerCase());
     const matchesPatient = !patient || appointment.patient.toLowerCase().includes(patient.toLowerCase());
+    const matchesPatientId = !patientId || String(appointment.patientId) === String(patientId);
     const matchesStatus = !status || appointment.status === status;
     const matchesDepartment = !departmentId || appointment.departmentId === String(departmentId);
-    return matchesDate && matchesDateFrom && matchesDateTo && matchesProvider && matchesPatient && matchesStatus && matchesDepartment;
+    return matchesDate && matchesDateFrom && matchesDateTo && matchesProvider && matchesPatient && matchesPatientId && matchesStatus && matchesDepartment;
   });
 }
 
@@ -649,10 +1234,10 @@ async function getLiveAppointments(options) {
     const uniquePatientIds = [...new Set(rawAppointments.map((appointment) => String(appointment.patientid)))];
     const patientNameById = await resolvePatientNames({ baseUrl, accessToken, practiceId, patientIds: uniquePatientIds });
 
-    lastAthenaError = null;
+    clearAthenaFailure();
     return rawAppointments.map((raw) => normalizeAthenaAppointment(raw, { providerNameById, patientNameById, departmentNameById }));
   } catch (error) {
-    lastAthenaError = error.message;
+    recordAthenaFailure(error);
     return null;
   }
 }
@@ -664,7 +1249,9 @@ async function getAppointmentsWithSource(options = {}) {
   }
 
   const liveAppointments = await getLiveAppointments(options);
-  if (liveAppointments) {
+  // An empty result is still a successful live sync; falling back to seeded
+  // appointments here would fabricate work for an actually empty department.
+  if (Array.isArray(liveAppointments)) {
     cacheAppointments(liveAppointments);
     return { appointments: filterAppointments(liveAppointments, options), source: 'athena', syncedLive: lastSyncedLive };
   }
@@ -702,16 +1289,21 @@ async function getDashboardAppointments(options = {}) {
 
 function resetAthenaCachesForTests() {
   tokenCache = null;
+  tokenRequestInFlight = null;
   departmentRecordCache = new Map();
   providerRecordCache = new Map();
   departmentsLoadedForPractice = new Set();
   providersLoadedForPractice = new Set();
+  departmentLoadRequests = new Map();
+  providerLoadRequests = new Map();
   patientNameCache = new Map();
   appointmentDayCache = new Map();
   mockAppointmentsCache = null;
   lastAthenaError = null;
   appointmentCache = new Map();
   lastSyncedLive = false;
+  athenaRetryAfter = 0;
+  lastAthenaFailureMessage = null;
 }
 
 module.exports = {
@@ -728,8 +1320,18 @@ module.exports = {
   listDepartments,
   listProviders,
   extractAthenaDocumentRows,
+  extractAthenaErrorMessage,
+  normalizeAthenaPatient,
+  normalizeAthenaPatientList,
   normalizeAthenaPatientCase,
   fetchAthenaPatientCases,
+  getAthenaPatientById,
+  searchAthenaPatients,
+  createAthenaPatient,
+  getAthenaProviderById,
+  getAthenaDepartmentById,
+  createAthenaPatientCase,
+  appendAthenaPatientCaseActionNote,
   findAthenaPatientCaseForAppointment,
   syncAthenaPatientCaseForAppointment,
   resolvePatientNames,

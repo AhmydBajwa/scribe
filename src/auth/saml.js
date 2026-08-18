@@ -1,17 +1,22 @@
-const crypto = require('crypto');
 const { initSamlEntities } = require('./samlEntities');
 const { getPublicUserByEmail } = require('./users');
+const { getUserForSession } = require('./practiceRoles');
+const { logActivity } = require('../cases/cases');
+const { SESSION_TTL_MS, createSession, getSession, destroySession } = require('./sessionStore');
 
-const sessions = new Map();
-
-function createSession(user) {
-  const sessionId = crypto.randomBytes(16).toString('hex');
-  sessions.set(sessionId, { user, createdAt: Date.now() });
-  return sessionId;
+function sessionCookieOptions() {
+  return {
+    httpOnly: true,
+    sameSite: 'lax',
+    secure: process.env.NODE_ENV === 'production',
+    maxAge: SESSION_TTL_MS,
+    path: '/',
+  };
 }
 
-function getSession(sessionId) {
-  return sessions.get(sessionId) || null;
+function clearSessionCookieOptions() {
+  const { maxAge, ...options } = sessionCookieOptions();
+  return options;
 }
 
 // SP-initiated login: build an AuthnRequest and redirect the browser to the
@@ -36,11 +41,14 @@ async function handleSAMLACS(req, res) {
       return res.status(401).send('SSO sign-in succeeded, but no local account matches this identity.');
     }
 
-    const sessionId = createSession(user);
-    res.cookie('sessionId', sessionId, {
-      httpOnly: true,
-      sameSite: 'lax',
+    const sessionId = createSession(getUserForSession(user));
+    res.cookie('sessionId', sessionId, sessionCookieOptions());
+
+    logActivity(null, 'admin:login', user?.name || null, {
+      role: user?.role || null,
+      email: extract.nameID,
     });
+
     res.redirect('/');
   } catch (error) {
     res.status(401).send(`SSO sign-in failed: ${error.message}`);
@@ -70,6 +78,9 @@ function requireAuth(req, res, next) {
 module.exports = {
   createSession,
   getSession,
+  destroySession,
+  sessionCookieOptions,
+  clearSessionCookieOptions,
   initiateSAMLLogin,
   handleSAMLACS,
   getSAMLMetadata,

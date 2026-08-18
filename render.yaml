@@ -1,0 +1,51 @@
+services:
+  - type: web
+    name: scribel
+    runtime: docker
+    plan: starter
+    healthCheckPath: /health
+    disk:
+      name: scribel-data
+      mountPath: /var/data
+      sizeGB: 10
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: SCRIBEL_DATA_DIR
+        value: /var/data
+      - key: PYTHON_EXECUTABLE
+        value: python3
+      - key: TRANSCRIPTION_PROVIDER
+        value: local-whisper
+      - key: WHISPER_MODEL
+        value: small
+      - key: WHISPER_COMPUTE_TYPE
+        value: int8
+      - key: DIARIZATION_PROVIDER
+        value: pyannote
+      - key: PYANNOTE_DIARIZATION_MODEL
+        value: pyannote/speaker-diarization-community-1
+      - key: MAX_AUDIO_UPLOAD_MB
+        value: "50"
+      - key: MAX_AUDIO_DURATION_MINUTES
+        value: "60"
+      - key: APP_BASE_URL
+        sync: false
+      - key: HF_TOKEN
+        sync: false
+      - key: SAML_IDP_PRIVATE_KEY_B64
+        sync: false
+      - key: SAML_IDP_CERT_B64
+        sync: false
+      - key: SCRIBEL_USERS_JSON
+        sync: false
+      - key: ATHENAHEALTH_BASE_URL
+        sync: false
+      - key: ATHENAHEALTH_CLIENT_ID
+        sync: false
+      - key: ATHENAHEALTH_CLIENT_SECRET
+        sync: false
+      - key: ATHENAHEALTH_SCOPE
+        sync: false
+      - key: ATHENAHEALTH_PRACTICE_ID
+        sync: false
